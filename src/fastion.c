@@ -66,15 +66,10 @@ train of electron bunches which propagates through a lattice.
 typedef struct /* GRID */
 {
   int n_cell_x,n_cell_y;
-  int timestep;
   double delta_x,delta_y;
   double offset_x,offset_y;
   double min_x,max_x,min_y,max_y;
-  double cut_x,cut_y,cut_z;
-  double step,n_macro_1,n_macro_2,step1,step2,scal_step[2];
-  float rho_x_1,rho_y_1,rho_sum_1,rho_x_2,rho_y_2,rho_sum_2;
-  double rho_factor;
-  int n_m_1,n_m_2;
+  double cut_x,cut_y;
   double *rho1,*rho2,*phi1,*phi2,*dist,*temp,*pot;
   int integration_method,distribution,interpolation;
 } GRID;
@@ -254,6 +249,10 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        qion                 ,   /* number of ions in one macroion                   */
        cxya                 ,   /* cxya -> sxya: transport parameters for the phase */
        sxya                 ,   /* space coordinates of the bunch particles         */
+       cxa                  ,   /* cxya -> sxya: transport parameters for the phase */
+       sxa                  ,   /* space coordinates of the bunch particles         */
+       cya                  ,   /* cxya -> sxya: transport parameters for the phase */
+       sya                  ,   /* space coordinates of the bunch particles         */
 
        xave                 ,   /* average horizontal offset of the bunch           */
        yave                 ,   /* average vertical offset of the bunch             */
@@ -287,6 +286,12 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        betay0               , 
        betax1               , 
        betay1               ,
+       mux0                 , 
+       muy0                 , 
+       alfax0               , 
+       alfay0               , 
+       alfax1               , 
+       alfay1               ,
        ss0                  , 
        ss1                  ,   /* --------------------------------------------     */ 
        benergy0             ,   /* --------------------------------------------     */ 
@@ -310,18 +315,31 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        coeff2               ,    /* through a FODO (or line) */
        coeff3               ,    /* Auxiliary parameters for transport of electrons */
        coeff4               ,    /* through a FODO (or line) */
-       coeff1x              ,    /* Auxiliary parameters for transport of electrons */
+       coeffga              ,    /* Auxiliary parameters for transport of electrons */
+       coeff1x              ,    /* through a FODO (or line) */
+       coeff1xbis           ,    /* Auxiliary parameters for transport of electrons */
        coeff2x              ,    /* through a FODO (or line) */
        coeff3x              ,    /* Auxiliary parameters for transport of electrons */
+       coeff3xbis           ,    /* Auxiliary parameters for transport of electrons */
        coeff4x              ,    /* through a FODO (or line) */
+       coeff4xbis           ,    /* through a FODO (or line) */
+       coeff4xter           ,    /* through a FODO (or line) */
        coeff1y              ,    /* Auxiliary parameters for transport of electrons */
+       coeff1ybis           ,    /* Auxiliary parameters for transport of electrons */
        coeff2y              ,    /* through a FODO (or line) */
        coeff3y              ,    /* Auxiliary parameters for transport of electrons */
+       coeff3ybis           ,    /* Auxiliary parameters for transport of electrons */
        coeff4y              ,    /* through a FODO (or line) */
+       coeff4ybis           ,    /* through a FODO (or line) */
+       coeff4yter           ,    /* through a FODO (or line) */
        *long_pos            ,    /* From here to the end: vectors to load energies, */
-       *benergy             ,    /* positions and beta functions along a generic    */
+       *benergy             ,    /* positions, beta, alfa functions along a generic */
        *betarrayx           ,    /* line (twiss.dat file used)                      */
-       *betarrayy           ;
+       *betarrayy           ,
+       *muarrayy            ,
+       *muarrayx            ,   
+       *alfarrayx           ,   
+       *alfarrayy           ;
 
            
 /* For sake of clarity we specify here that the broad band model that we've assumed 
@@ -437,7 +455,7 @@ read_data ()
 { char  cfg_filename[100], dummy_string[64], twiss_filename[10];
   FILE  *cfg_file_ptr, *twiss_file;
   long  dummy_int, k_cou, condition, iread;
-  double dummy[11];
+  double dummy[8];
 
   printf ("\n\n    Please specify name (without extension) of desired") ;
   printf ("\n    configuration-file : ") ;
@@ -560,9 +578,9 @@ read_data ()
     
     k_cou = 0;
     
-    do {condition = fscanf (twiss_file, "%ld  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg\n",
-			    &dummy_int,&dummy[1],&dummy[2],&dummy[3],&dummy[4],&dummy[5],&dummy[6],
-			    &dummy[7],&dummy[8],&dummy[9],&dummy[10],&dummy[11]);
+    do {condition = fscanf (twiss_file, "%ld  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg\n",
+			    &dummy_int,&dummy[0],&dummy[1],&dummy[2],&dummy[3],&dummy[4],&dummy[5],&dummy[6],
+			    &dummy[7]);
     ++k_cou;	 
     }
     while (condition != EOF);
@@ -574,14 +592,21 @@ read_data ()
     benergy=dvector(0,nstep-1);
     betarrayx=dvector(0,nstep-1);
     betarrayy=dvector(0,nstep-1);
+    alfarrayx=dvector(0,nstep-1);
+    alfarrayy=dvector(0,nstep-1);
+    muarrayx=dvector(0,nstep-1);
+    muarrayy=dvector(0,nstep-1);
       
     twiss_file = fopen(twiss_filename,"r");
     k_cou = 0;
     
-    do {condition = fscanf (twiss_file, "%ld  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg\n",
-			    &dummy_int,&long_pos[k_cou],&benergy[k_cou],&betarrayx[k_cou],&dummy[1],&dummy[2],
-			    &dummy[3],&betarrayy[k_cou],&dummy[4],&dummy[5],&dummy[6],&dummy[7]);
-    printf ("\n %ld  %f %f %f %f\n", k_cou, long_pos[k_cou], benergy[k_cou], betarrayx[k_cou],betarrayy[k_cou]);
+    do {condition = fscanf (twiss_file, "%ld  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg\n",
+			    &dummy_int,&long_pos[k_cou],&benergy[k_cou],&betarrayx[k_cou],&betarrayy[k_cou],
+			    &alfarrayx[k_cou],&alfarrayy[k_cou],&muarrayx[k_cou],&muarrayy[k_cou]);
+    printf ("\n %ld  %f %f %f %f\n", k_cou, long_pos[k_cou], benergy[k_cou], betarrayx[k_cou],
+	     betarrayy[k_cou], alfarrayx[k_cou],alfarrayy[k_cou], muarrayx[k_cou],muarrayy[k_cou]);
+    muarrayx[k_cou] *= 2.*PI;
+    muarrayy[k_cou] *= 2.*PI;
     ++k_cou;	 
     }
     while (condition != EOF);
@@ -590,6 +615,12 @@ read_data ()
     betay0 = betarrayy[0];
     betax1 = betarrayx[1];
     betay1 = betarrayy[1];
+    alfax0 = alfarrayx[0];
+    alfay0 = alfarrayy[0];
+    alfax1 = alfarrayx[1];
+    alfay1 = alfarrayy[1];
+    mux0 = muarrayx[1];
+    muy0 = muarrayy[1];
     ss0 = long_pos[0];
     ss1 = long_pos[1];
     benergy0 = benergy[0];
@@ -686,16 +717,27 @@ init_values ()
    
    nstep = nfodo*2;
    gammaprev = gammain;
+ 
+   cxya = cos(mu/2.);
+   sxya = sin(mu/2.);
  }
  else {
    coeff1x = sqrt(betax1/betax0);
+   coeff1xbis = alfax0;
    coeff2x = sqrt(betax1*betax0);
    coeff3x = 1/coeff1x;
+   coeff3xbis = alfax1;
    coeff4x = 1/coeff2x;
+   coeff4xbis = 1. + alfax1*alfax0;
+   coeff4xter = alfax0 - alfax1;
    coeff1y = sqrt(betay1/betay0);
+   coeff1ybis = alfay0;
    coeff2y = sqrt(betay1*betay0);
    coeff3y = 1/coeff1y;
+   coeff3ybis = alfay1;
    coeff4y = 1/coeff2y;
+   coeff4ybis = 1. + alfay1*alfay0;
+   coeff4yter = alfay0 - alfay1;
 
    gammaprev = benergy0*1.e3/0.511;   
    sx0 = sqrt(betax0*emxN0*1.e-9/gammaprev);
@@ -703,10 +745,13 @@ init_values ()
    sy0 = sqrt(betay0*emyN0*1.e-9/gammaprev);
    sy1 = sqrt(betay1*emyN0*1.e-9/gammaprev);
    
+   cxa = cos(mux0);
+   sxa = sin(mux0);
+   cya = cos(muy0);
+   sya = sin(muy0);
+   
  }
- 
- cxya = cos(mu/2.);
- sxya = sin(mu/2.);
+
  
  n_diag2 = nstep/10;
  if(nstep<10) n_diag2=1;
@@ -775,14 +820,23 @@ update_values ()
    qion *=dstep/dstep0;
 
    if (i_cool==0){
-     coeff1x = sqrt(gammaprev/gammanext*betarrayx[it]/betarrayx[it-1]);
-     coeff2x = sqrt(gammaprev/gammanext*betarrayx[it]*betarrayx[it-1]);
-     coeff3x = sqrt(gammaprev/gammanext/betarrayx[it]*betarrayx[it-1]);
-     coeff4x = sqrt(gammaprev/gammanext/betarrayx[it]/betarrayx[it-1]);
-     coeff1y = sqrt(gammaprev/gammanext*betarrayy[it]/betarrayy[it-1]);
-     coeff2y = sqrt(gammaprev/gammanext*betarrayy[it]*betarrayy[it-1]);
-     coeff3y = sqrt(gammaprev/gammanext/betarrayy[it]*betarrayy[it-1]);
-     coeff4y = sqrt(gammaprev/gammanext/betarrayy[it]/betarrayy[it-1]);
+     coeffga = sqrt(gammaprev/gammanext);
+     coeff1x = sqrt(betarrayx[it]/betarrayx[it-1]);
+     coeff1xbis = alfarrayx[it-1];
+     coeff2x = sqrt(betarrayx[it]*betarrayx[it-1]);
+     coeff3x = 1./coeff1x;
+     coeff3xbis = alfarrayx[it];
+     coeff4x = 1./coeff2x;
+     coeff4xbis = 1. + alfarrayx[it]*alfarrayx[it-1];
+     coeff4xter = alfarrayx[it-1] - alfarrayx[it];
+     coeff1y = sqrt(betarrayy[it]/betarrayy[it-1]);
+     coeff1ybis = alfarrayy[it-1];
+     coeff2y = sqrt(betarrayy[it]*betarrayy[it-1]);
+     coeff3y = 1./coeff1y;
+     coeff3ybis = alfarrayy[it];
+     coeff4y = 1./coeff2y;
+     coeff4ybis = 1. + alfarrayy[it]*alfarrayy[it-1];
+     coeff4yter = alfarrayy[it-1] - alfarrayy[it];   
    }
    if (i_cool==1){
      coeff1x = sqrt(betarrayx[it]/betarrayx[it-1]);
@@ -799,6 +853,11 @@ update_values ()
    sx1 = sqrt(betarrayx[it]*emxN0*1.e-9/gammanext);
    sy0 = sqrt(betarrayy[it-1]*emyN0*1.e-9/gammaprev);
    sy1 = sqrt(betarrayy[it]*emyN0*1.e-9/gammanext);
+
+   cxa = cos(muarrayx[it] - muarrayx[it-1]);
+   sxa = sin(muarrayx[it] - muarrayx[it-1]);
+   cya = cos(muarrayy[it] - muarrayy[it-1]);
+   sya = sin(muarrayy[it] - muarrayy[it-1]);
 
    fprintf(sigma_pr,"%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",long_pos[it-1],gammanext,sx0,sy0,sx1,sy1);
 
@@ -1557,29 +1616,56 @@ initialization ()
 
    }
 
-   for (i=j*NELB; i<(j+1)*NELB; i++)
-     { do { u = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
-     v = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
-     s = u*u + v*v ; }
-     while (s >= 1.0) ;
+   switch(i_lattice){
+
+   case 0:
+     for (i=j*NELB; i<(j+1)*NELB; i++){ 
+       do { u = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
+       v = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
+       s = u*u + v*v ; }
+       while (s >= 1.0) ;
      
-     xel[i] = sx0 * u * sqrt(-2.0*log(s)/s);
-     xpel[i] = sx0/betax0 * v * sqrt(-2.0*log(s)/s);
+       xel[i] = sx0 * u * sqrt(-2.0*log(s)/s);
+       xpel[i] = sx0/betax0 * v * sqrt(-2.0*log(s)/s);
      
      
-     do { u = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
-     v = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
-     s = u*u + v*v ; }
-     while (s >= 1.0) ;
+       do { u = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
+       v = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
+       s = u*u + v*v ; }
+       while (s >= 1.0) ;
      
-     yel[i] = sy0 * u * sqrt(-2.0*log(s)/s);
-     ypel[i] = sy0/betay0 * v * sqrt(-2.0*log(s)/s);
+       yel[i] = sy0 * u * sqrt(-2.0*log(s)/s);
+       ypel[i] = sy0/betay0 * v * sqrt(-2.0*log(s)/s);
      
-     xsum += xel[i];
-     ysum += yel[i];
-     xpsum += xpel[i];
-     ypsum += ypel[i];
+       xsum += xel[i];
+       ysum += yel[i];
+       xpsum += xpel[i];
+       ypsum += ypel[i];
      }
+     break;
+     
+   case 1:
+     for (i=j*NELB; i<(j+1)*NELB; i++){
+       
+       u = sqrt(-2.0 * log( rand()/(double)(RAND_MAX) ));
+       v = 2.0*PI * ( rand()/(double)(RAND_MAX) );
+
+       xel[i] = sx0 * u * cos(v);
+       xpel[i] = -sx0/betax0 * u * (sin(v) + alfax0 * cos(v));
+
+       u = sqrt(-2.0 * log( rand()/(double)(RAND_MAX) ));
+       v = 2.0*PI * ( rand()/(double)(RAND_MAX) );
+
+       yel[i] = sy0 * u * cos(v);
+       ypel[i] = -sy0/betay0 * u * (sin(v) + alfay0 * cos(v));
+
+       xsum += xel[i];
+       ysum += yel[i];
+       xpsum += xpel[i];
+       ypsum += ypel[i];
+     }
+     break;
+   } 
    
    xave = xsum/(double)NELB;
    yave = ysum/(double)NELB;
@@ -3449,10 +3535,10 @@ int main (int argc, char *argv[])
 	  }
 	}
 	else {
-	  xel[kmain] = coeff1x * cxya * xel0 + coeff2x * sxya * xpel0;
-	  xpel[kmain] = -coeff4x * sxya * xel0 + coeff3x * cxya * xpel0;
-	  yel[kmain] = coeff1y * cxya * yel0 + coeff2y * sxya * ypel0;
-	  ypel[kmain] = -coeff4y * sxya * yel0 + coeff3y * cxya * ypel0;
+	  xel[kmain] = coeffga * (coeff1x * (cxa + coeff1xbis * sxa) * xel0 + coeff2x * sxa * xpel0);
+	  xpel[kmain] = coeffga * (coeff4x * (-coeff4xbis * sxa + coeff4xter * cxa) * xel0 + coeff3x * (cxa - coeff3xbis * sxa) * xpel0);
+	  yel[kmain] = coeffga * (coeff1y * (cya + coeff1ybis * sya) * yel0 + coeff2y * sya * ypel0);
+	  ypel[kmain] = coeffga * (coeff4y * (-coeff4ybis * sya + coeff4yter * cya) * yel0 + coeff3y * (cya - coeff3ybis * sya) * ypel0);
 	}
 	  
 	/*
@@ -3499,6 +3585,13 @@ int main (int argc, char *argv[])
   free_dvector(am,0,nspe-1);
   free_dvector(crsec,0,nspe-1);
   free_dvector(fscale1,0,nspe-1);
+  free_dvector(betarrayx,0,nstep);
+  free_dvector(betarrayy,0,nstep);
+  free_dvector(benergy,0,nstep);
+  free_dvector(alfarrayx,0,nstep);
+  free_dvector(alfarrayy,0,nstep);
+  free_dvector(muarrayx,0,nstep);
+  free_dvector(muarrayy,0,nstep);
   free_dvector(prob,0,nspe-1);
   
   fclose(centr_pr);

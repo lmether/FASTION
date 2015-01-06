@@ -28,8 +28,8 @@ void fourtrans2(double *d,int nn[],int dir)
             fftw_import_wisdom_from_file(f);
             fclose(f);
 */
-            in=(fftw_complex*)alloca(sizeof(fftw_complex)*nn[0]*nn[1]);
-            out=(fftw_complex*)alloca(sizeof(fftw_complex)*nn[0]*nn[1]);
+            in=(fftw_complex*)malloc(sizeof(fftw_complex)*nn[0]*nn[1]);
+            out=(fftw_complex*)malloc(sizeof(fftw_complex)*nn[0]*nn[1]);
 /*
             p = fftw2d_create_plan_specific(nn[1],nn[0],FFTW_FORWARD,
                                             FFTW_MEASURE | FFTW_IN_PLACE |
@@ -46,8 +46,8 @@ FFTW_USE_WISDOM,
      }
     else{
         if (first2) {
-            in=(fftw_complex*)alloca(sizeof(fftw_complex)*nn[0]*nn[1]);
-            out=(fftw_complex*)alloca(sizeof(fftw_complex)*nn[0]*nn[1]);
+            in=(fftw_complex*)malloc(sizeof(fftw_complex)*nn[0]*nn[1]);
+            out=(fftw_complex*)malloc(sizeof(fftw_complex)*nn[0]*nn[1]);
 /*
             p2 = fftw2d_create_plan_specific(nn[1],nn[0],FFTW_BACKWARD,
                                              FFTW_MEASURE | FFTW_IN_PLACE |
@@ -80,8 +80,8 @@ void fourtrans3(double *d,int nn[],int dir)
             fftw_import_wisdom_from_file(f);
             fclose(f);
 */
-            in=(fftw_complex*)alloca(sizeof(fftw_complex)*nn[0]*nn[1]);
-            out=(fftw_complex*)alloca(sizeof(fftw_complex)*nn[0]*nn[1]);
+            in=(fftw_complex*)malloc(sizeof(fftw_complex)*nn[0]*nn[1]);
+            out=(fftw_complex*)malloc(sizeof(fftw_complex)*nn[0]*nn[1]);
 /*
             p = fftw2d_create_plan_specific(nn[1],nn[0],FFTW_FORWARD,
                                             FFTW_MEASURE | FFTW_IN_PLACE |
@@ -108,8 +108,8 @@ FFTW_USE_WISDOM,
      }
     else{
         if (first2) {
-            in=(fftw_complex*)alloca(sizeof(fftw_complex)*nn[0]*nn[1]);
-            out=(fftw_complex*)alloca(sizeof(fftw_complex)*nn[0]*nn[1]);
+            in=(fftw_complex*)malloc(sizeof(fftw_complex)*nn[0]*nn[1]);
+            out=(fftw_complex*)malloc(sizeof(fftw_complex)*nn[0]*nn[1]);
 /*
             p2 = fftw2d_create_plan_specific(nn[1],nn[0],FFTW_BACKWARD,
                                              FFTW_MEASURE | FFTW_IN_PLACE |

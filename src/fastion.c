@@ -600,16 +600,16 @@ read_data ()
     twiss_file = fopen(twiss_filename,"r");
     k_cou = 0;
     
-    do {condition = fscanf (twiss_file, "%ld  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg\n",
-			    &dummy_int,&long_pos[k_cou],&benergy[k_cou],&betarrayx[k_cou],&betarrayy[k_cou],
-			    &alfarrayx[k_cou],&alfarrayy[k_cou],&muarrayx[k_cou],&muarrayy[k_cou]);
-    printf ("\n %ld  %f %f %f %f\n", k_cou, long_pos[k_cou], benergy[k_cou], betarrayx[k_cou],
-	     betarrayy[k_cou], alfarrayx[k_cou],alfarrayy[k_cou], muarrayx[k_cou],muarrayy[k_cou]);
-    muarrayx[k_cou] *= 2.*PI;
-    muarrayy[k_cou] *= 2.*PI;
-    ++k_cou;	 
+    while (k_cou < nstep) {
+      fscanf (twiss_file, "%ld  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg\n",
+	      &dummy_int,&long_pos[k_cou],&benergy[k_cou],&betarrayx[k_cou],&betarrayy[k_cou],
+	      &alfarrayx[k_cou],&alfarrayy[k_cou],&muarrayx[k_cou],&muarrayy[k_cou]);
+      printf ("\n %ld  %f %f %f %f %f %f %f %f\n", k_cou, long_pos[k_cou], benergy[k_cou], betarrayx[k_cou],
+	      betarrayy[k_cou], alfarrayx[k_cou],alfarrayy[k_cou], muarrayx[k_cou],muarrayy[k_cou]);
+      muarrayx[k_cou] *= 2.*PI;
+      muarrayy[k_cou] *= 2.*PI;
+      ++k_cou;	 
     }
-    while (condition != EOF);
       
     betax0 = betarrayx[0];
     betay0 = betarrayy[0];
@@ -3290,7 +3290,7 @@ int main (int argc, char *argv[])
 	    
 	/* offsets and rms sizes of the bunches are printed to file          */
 	if(i_lattice==0) {
-	  if(it % n_diag == 0 || it == 1) 
+	  if(it % n_diag == 0 || it == 1) { 
 	    if(it%2==1)
 	      fprintf(trainhdtl_pr, "%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",
 		      (double)jmain*bsp, xoff, yoff, sx, sy, 
@@ -3301,6 +3301,7 @@ int main (int argc, char *argv[])
 		      (double)jmain*bsp, xoff, yoff, sx, sy, 
 		      sx*sx/beta_max*gammaprev*1.e9, sy*sy/beta_min*gammaprev*1.e9, 
 		      localemitx*gammaprev*1.e9, localemity*gammaprev*1.e9);
+	  }
 	}
 	else {
 	  if(it % n_diag == 0 || it == 1) 
@@ -3354,7 +3355,7 @@ int main (int argc, char *argv[])
 	    gridexty = 1.1*fmax(fabs(ysion)+5.*sysion,10.*yel_max[jmain]);
 	  }
 	  
-	  fprintf (grid_pr, "%d  %d  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e\n",
+	  fprintf (grid_pr, "%ld  %d  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e\n",
 		   it,jmain,gridextx*1.e9,gridexty*1.e9,1.1e9*xion_max,1.1e9*yion_max,1.1e9*(fabs(xsion)+5.*sxsion),
 		   1.1e9*(fabs(ysion)+5.*sysion),1.1e9*10.*xel_max[jmain],1.1e9*10.*yel_max[jmain]);
 	      

@@ -47,10 +47,8 @@ train of electron bunches which propagates through a lattice.
 /* Parameters for the computation... */
 				
 
-#define  NION    500               /* Number of macro-ions produced per
-                                     bunch passage                      */
-//#define  NION    1                  /* Number of macro-ions produced per
-//                                       bunch passage                      */
+#define  NION    500                /* Number of macro-ions produced per
+                                       bunch passage                      */
 #define  NELB    10000              /* Number of macroelectrons
                                        in one bunch                       */
 #define  NBUN    312                /* Number of bunches in the train     */
@@ -104,15 +102,13 @@ long  mmain                 ,   /* down to mmain -> indices used in main for loo
       nt                    ,   /* index used for cycle over the number of turns    */
       iion                  ,   /* switch for fast ion instability                  */
       ifi                   ,   /* switch for field ionization                      */
-      i_lattice             ,   /* switch for use of external Twiss file            */
       nspe                  ,   /* number of ion species                            */
       nstep                 ,   /* number of interactions                           */
       nturn                 ,   /* number of turns through lattice                  */
-      nfodo                 ,   /* number of fodo cells through the line            */
       ili                   ,   /* flag for the function ffrank: it has to be =! 1  */
-      i_cool                ,   /* flag for the distribution of the emittance
-                                   cooling due to acceleration                      */
-      iwake_flag            ,   /* flag for the wake field: input parameter         */
+      i_cool                ,   /* flag for the distribution of the emittance cooling
+                                   due to acceleration, 0: x and xp, 1: only xp                  */
+      iwake_flag            ,   /* flag for the wake field: input parameter                      */
       i_pipe                ,   /* flag for gemoetry in effective wake calculation
                                    0 -> circular (a=b)  1 -> flat  (a>>b)                        */
       i_dip                 ,
@@ -175,7 +171,7 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
   //indyp[NDC]           ,   /* grid points for the vertical distribution of the bunch particles  */
   //vdp[NDC]             ,   /* vertical distribution of bunch particles before interacting with the particles */
   //indxpp[NDC]          ,   /* grid points for the distribution of horizontal momenta of the bunch particles  */
-  //hpdp[NDC]            ,   /* distribution of horizontal momenta of the bunch particles before interacting with the electrons  */
+//hpdp[NDC]            ,   /* distribution of horizontal momenta of the bunch particles before interacting with the electrons  */
   //indypp[NDC]          ,   /* grid points for the distribution of vertical momenta of the bunch particles    */
   //vpdp[NDC]            ,   /* distribution of vertical momenta of the bunch particles before interacting with the electrons    */
 
@@ -186,8 +182,8 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        *am                  ,   /* Mass numbers of rest gas molecules               */
        *crsec               ,   /* [MBarn] Ionization cross section for the different
                                    molecule types of rest gas                       */
-       *prob                ,   /* Probability distribution for different types of ions (gas ionization)             */
-       *prob2               ,   /* Probability distribution for different types of ions (field ionization)           */
+       *prob                ,   /* Probability distribution for different types of ions (gas ionization)   */
+       *prob2               ,   /* Probability distribution for different types of ions (field ionization) */
        factor1              ,   /* auxiliary parameter for the force calculation    */
        *fscale1             ,   /* auxiliary parameter for the force calculation    */
        nele                 ,   /* number of electrons per bunch                    */
@@ -198,12 +194,8 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        sz0                  ,   /* [ns] rms bunch length                            */
        emxN0                ,   /* [nm] rms hor. normalized emittance               */
        emyN0                ,   /* [nm] rms vert. normalized emittance              */
-       gammain              ,   /* relativistic gamma at beginning of line          */
-       gammafin             ,   /* relativistic gamma at end of line                */
        gammanext            ,   /* stores a local value of gamma along the line     */
        gammaprev            ,   /* stores a local value of gamma along the line     */
-       fodol                ,   /* [m] length of the FODO cell                      */
-       mu                   ,   /* [degrees] phase advance per cell                 */
        nxkick0              ,   /* Amplitude of the horizontal kick in t=0 in number of sigmas   */
        nykick0              ,   /* Amplitude of the vertical kick in t=0 in number of sigmas     */
        rpipey               ,    /* y-size of the chamber for resistive wall        */
@@ -225,14 +217,6 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        omegarz              ,    /* auxiliary parameters for longitudinal wake      */
        omegabarz            , 
        alphaz               ,
-       beta_max             ,   /* [m] maximum beta function in the FODO            */
-       beta_min             ,   /* [m] minimum beta function in the FODO            */
-       alpha_max            ,   /* [m] maximum alfa function in the FODO            */
-       alpha_min            ,   /* [m] minimum alfa function in the FODO            */
-       sx_min               ,   /* [m] maximum rms hor. beam size                   */
-       sx_max               ,   /* [m] minimum rms hor. beam size                  */
-       sy_min               ,   /* [m] maximum rms vert. beam size                   */
-       sy_max               ,   /* [m] minimum rms vert. beam size                  */
        xion_max             ,   /* [m] maximum ion x position                       */
        yion_max             ,   /* [m] minimum ion y position                       */
        factor2              ,   /* auxiliary parameter for the force calculation    */
@@ -265,9 +249,6 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        sypsize              ,
        xemit                ,   /* horizontal emittance                             */
        yemit                ,   /* vertical emittance                               */
-  //invarx               ,   /* Courant-Snyder horizontal invariant              */
-  //invary               ,   /* Courant-Snyder vertical invariant                */
-
        xoff                 ,   /* local variables for bunch offsets and sizes      */
        yoff                 ,
        sx                   ,
@@ -298,7 +279,6 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        bsol                 ,
        bgrad                , 
        bdip                 ,
-       lengthfi             ,   /* starting point for field ionization              */
        kick_xi              ,   /* velocity x-kick from each bunch on each ion      */ 
        kick_yi              ,   /* velocity y-kick from each slice on each ion      */
        kick_xe              ,   /* x-kick on each bunch electron                    */
@@ -311,27 +291,23 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
                                    been kicked, before transport to the next kick   */
        ypel0                ,   /* dy/ds of a bunch particle after having been 
                                    kicked and before transport                      */
-       coeff1               ,    /* Auxiliary parameters for transport of electrons */
-       coeff2               ,    /* through a FODO (or line) */
-       coeff3               ,    /* Auxiliary parameters for transport of electrons */
-       coeff4               ,    /* through a FODO (or line) */
-       coeffga              ,    /* Auxiliary parameters for transport of electrons */
-       coeff1x              ,    /* through a FODO (or line) */
-       coeff1xbis           ,    /* Auxiliary parameters for transport of electrons */
-       coeff2x              ,    /* through a FODO (or line) */
-       coeff3x              ,    /* Auxiliary parameters for transport of electrons */
-       coeff3xbis           ,    /* Auxiliary parameters for transport of electrons */
-       coeff4x              ,    /* through a FODO (or line) */
-       coeff4xbis           ,    /* through a FODO (or line) */
-       coeff4xter           ,    /* through a FODO (or line) */
-       coeff1y              ,    /* Auxiliary parameters for transport of electrons */
-       coeff1ybis           ,    /* Auxiliary parameters for transport of electrons */
-       coeff2y              ,    /* through a FODO (or line) */
-       coeff3y              ,    /* Auxiliary parameters for transport of electrons */
-       coeff3ybis           ,    /* Auxiliary parameters for transport of electrons */
-       coeff4y              ,    /* through a FODO (or line) */
-       coeff4ybis           ,    /* through a FODO (or line) */
-       coeff4yter           ,    /* through a FODO (or line) */
+       coega              ,    /* Auxiliary parameters for transport of electrons */
+       coe1x              ,    /* through a FODO (or line) */
+       coe1xbis           ,    /* Auxiliary parameters for transport of electrons */
+       coe2x              ,    /* through a FODO (or line) */
+       coe3x              ,    /* Auxiliary parameters for transport of electrons */
+       coe3xbis           ,    /* Auxiliary parameters for transport of electrons */
+       coe4x              ,    /* through a FODO (or line) */
+       coe4xbis           ,    /* through a FODO (or line) */
+       coe4xter           ,    /* through a FODO (or line) */
+       coe1y              ,    /* Auxiliary parameters for transport of electrons */
+       coe1ybis           ,    /* Auxiliary parameters for transport of electrons */
+       coe2y              ,    /* through a FODO (or line) */
+       coe3y              ,    /* Auxiliary parameters for transport of electrons */
+       coe3ybis           ,    /* Auxiliary parameters for transport of electrons */
+       coe4y              ,    /* through a FODO (or line) */
+       coe4ybis           ,    /* through a FODO (or line) */
+       coe4yter           ,    /* through a FODO (or line) */
        *long_pos            ,    /* From here to the end: vectors to load energies, */
        *benergy             ,    /* positions, beta, alfa functions along a generic */
        *betarrayx           ,    /* line (twiss.dat file used)                      */
@@ -503,21 +479,6 @@ read_data ()
   fscanf (cfg_file_ptr,"%s",dummy_string);
   fscanf (cfg_file_ptr,"%lf",&sz0);
   fscanf (cfg_file_ptr,"%s",dummy_string);
-  fscanf (cfg_file_ptr,"%lf",&gammain);
-  fscanf (cfg_file_ptr,"%s",dummy_string);  
-  fscanf (cfg_file_ptr,"%lf",&gammafin);
-  fscanf (cfg_file_ptr,"%s",dummy_string);  
-  fscanf (cfg_file_ptr,"%lf",&lengthfi);
-  fscanf (cfg_file_ptr,"%s",dummy_string);
-  fscanf (cfg_file_ptr,"%ld",&i_lattice);
-  printf ("i_lattice=%ld\n",i_lattice);
-  fscanf (cfg_file_ptr,"%s",dummy_string);
-  fscanf (cfg_file_ptr,"%ld",&nfodo);
-  fscanf (cfg_file_ptr,"%s",dummy_string);
-  fscanf (cfg_file_ptr,"%lf",&fodol);
-  fscanf (cfg_file_ptr,"%s",dummy_string);
-  fscanf (cfg_file_ptr,"%lf",&mu);
-  fscanf (cfg_file_ptr,"%s",dummy_string);
   fscanf (cfg_file_ptr,"%ld",&i_kick);
   printf ("i_kick=%ld\n",i_kick);
   fscanf (cfg_file_ptr,"%s",dummy_string);
@@ -565,68 +526,64 @@ read_data ()
 
   ifi = 0;
 
-  if(i_lattice==1) {
-
-    strcpy (twiss_filename,"twiss.dat");
-    //strcat (twiss_filename,".1");
+  strcpy (twiss_filename,"twiss.dat");    
+  twiss_file = fopen(twiss_filename,"r");
     
-    twiss_file = fopen(twiss_filename,"r");
-    
-    if (twiss_file == NULL)
-      { printf ("\n\n    File with Twiss parameters does not exist.\n") ;
+  if (twiss_file == NULL)
+    { printf ("\n\n    File with Twiss parameters does not exist.\n") ;
       exit(2); }
     
-    k_cou = 0;
+  k_cou = 0;
     
-    do {condition = fscanf (twiss_file, "%ld  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg\n",
-			    &dummy_int,&dummy[0],&dummy[1],&dummy[2],&dummy[3],&dummy[4],&dummy[5],&dummy[6],
-			    &dummy[7]);
+  do {condition = fscanf (twiss_file, "%ld  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg\n",
+			  &dummy_int,&dummy[0],&dummy[1],&dummy[2],&dummy[3],&dummy[4],&dummy[5],&dummy[6],
+			  &dummy[7]);
     ++k_cou;	 
-    }
-    while (condition != EOF);
-
-    fclose(twiss_file);
-    
-    nstep=k_cou-1; 
-    long_pos=dvector(0,nstep-1);
-    benergy=dvector(0,nstep-1);
-    betarrayx=dvector(0,nstep-1);
-    betarrayy=dvector(0,nstep-1);
-    alfarrayx=dvector(0,nstep-1);
-    alfarrayy=dvector(0,nstep-1);
-    muarrayx=dvector(0,nstep-1);
-    muarrayy=dvector(0,nstep-1);
-      
-    twiss_file = fopen(twiss_filename,"r");
-    k_cou = 0;
-    
-    while (k_cou < nstep) {
-      fscanf (twiss_file, "%ld  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg\n",
-	      &dummy_int,&long_pos[k_cou],&benergy[k_cou],&betarrayx[k_cou],&betarrayy[k_cou],
-	      &alfarrayx[k_cou],&alfarrayy[k_cou],&muarrayx[k_cou],&muarrayy[k_cou]);
-      printf ("\n %ld  %f %f %f %f %f %f %f %f\n", k_cou, long_pos[k_cou], benergy[k_cou], betarrayx[k_cou],
-	      betarrayy[k_cou], alfarrayx[k_cou],alfarrayy[k_cou], muarrayx[k_cou],muarrayy[k_cou]);
-      muarrayx[k_cou] *= 2.*PI;
-      muarrayy[k_cou] *= 2.*PI;
-      ++k_cou;	 
-    }
-      
-    betax0 = betarrayx[0];
-    betay0 = betarrayy[0];
-    betax1 = betarrayx[1];
-    betay1 = betarrayy[1];
-    alfax0 = alfarrayx[0];
-    alfay0 = alfarrayy[0];
-    alfax1 = alfarrayx[1];
-    alfay1 = alfarrayy[1];
-    mux0 = muarrayx[1];
-    muy0 = muarrayy[1];
-    ss0 = long_pos[0];
-    ss1 = long_pos[1];
-    benergy0 = benergy[0];
-
-    fclose(twiss_file);
   }
+  while (condition != EOF);
+
+  fclose(twiss_file);
+    
+  nstep=k_cou-1; 
+  long_pos=dvector(0,nstep-1);
+  benergy=dvector(0,nstep-1);
+  betarrayx=dvector(0,nstep-1);
+  betarrayy=dvector(0,nstep-1);
+  alfarrayx=dvector(0,nstep-1);
+  alfarrayy=dvector(0,nstep-1);
+  muarrayx=dvector(0,nstep-1);
+  muarrayy=dvector(0,nstep-1);
+      
+  twiss_file = fopen(twiss_filename,"r");
+  k_cou = 0;
+    
+  while (k_cou < nstep) {
+    fscanf (twiss_file, "%ld  %lg  %lg  %lg  %lg  %lg  %lg  %lg  %lg\n",
+	    &dummy_int,&long_pos[k_cou],&benergy[k_cou],&betarrayx[k_cou],&betarrayy[k_cou],
+	    &alfarrayx[k_cou],&alfarrayy[k_cou],&muarrayx[k_cou],&muarrayy[k_cou]);
+    printf ("\n %ld  %f %f %f %f %f %f %f %f\n", k_cou, long_pos[k_cou], benergy[k_cou], betarrayx[k_cou],
+	    betarrayy[k_cou], alfarrayx[k_cou],alfarrayy[k_cou], muarrayx[k_cou],muarrayy[k_cou]);
+    muarrayx[k_cou] *= 2.*PI;
+    muarrayy[k_cou] *= 2.*PI;
+    ++k_cou;	 
+  }
+      
+  betax0 = betarrayx[0];
+  betay0 = betarrayy[0];
+  betax1 = betarrayx[1];
+  betay1 = betarrayy[1];
+  alfax0 = alfarrayx[0];
+  alfay0 = alfarrayy[0];
+  alfax1 = alfarrayx[1];
+  alfay1 = alfarrayy[1];
+  mux0 = muarrayx[1];
+  muy0 = muarrayy[1];
+  ss0 = long_pos[0];
+  ss1 = long_pos[1];
+  benergy0 = benergy[0];
+
+  fclose(twiss_file);
+    //  }
 
 }
 
@@ -644,134 +601,96 @@ read_data ()
 init_values ()
 
 { int im;
- double accum;
+  double accum;
 
- if(i_lattice==0)
-   dstep = fodol/2.;
- else
-   dstep = ss1-ss0;
+  dstep = ss1-ss0;
 
- tstepp = dstep/C;
- tstep = 4*sz0*1.e-9;
- ptot = 0.;
- accum = 0.;
+  tstepp = dstep/C;
+  tstep = 4*sz0*1.e-9;
+  ptot = 0.;
+  accum = 0.;
 
- ili = 0;
- i_cool = 0;
+  ili = 0;
+  i_cool = 0;
  
- for(im=0;im<nspe;im++) {
-   factor1 = RP/am[im]*C*sqrt(2*PI)/tstep;
-   fscale1[im] = factor1/sqrt(2*PI);
-   ptot+=pss[im];
-   accum+=crsec[im]*pss[im];
- }
+  for(im=0;im<nspe;im++) {
+    factor1 = RP/am[im]*C*sqrt(2*PI)/tstep;
+    fscale1[im] = factor1/sqrt(2*PI);
+    ptot+=pss[im];
+    accum+=crsec[im]*pss[im];
+  }
  
- qe0 = nele/(double)NELB;   
+  qe0 = nele/(double)NELB;   
  
- nionpb = 0.;
+  nionpb = 0.;
  
- for(im=0;im<nspe;im++) {
-   nionpb += crsec[im]*pss[im];
-   //accum += pss[im];
-   //prob[im] = accum/ptot;
-   prob[im] = nionpb/accum;
-   fprintf(ion_inphase,"\n Probability ion type %d (mass %lf) = %lf\n ",im,am[im],prob[im]);
- }
+  for(im=0;im<nspe;im++) {
+    nionpb += crsec[im]*pss[im];
+    prob[im] = nionpb/accum;
+    fprintf(ion_inphase,"\n Probability ion type %d (mass %lf) = %lf\n ",im,am[im],prob[im]);
+  }
  
- nionpb*=3.226e-9*nele*dstep;
+  nionpb*=3.226e-9*nele*dstep;
  
- qion = nionpb/(double)NION;
+  qion = nionpb/(double)NION;
  
- omegar = 2*PI*freqr*1e9;
- alphat = omegar/(2*merit);
- omegabar = sqrt(omegar*omegar - alphat*alphat);
+  omegar = 2*PI*freqr*1e9;
+  alphat = omegar/(2*merit);
+  omegabar = sqrt(omegar*omegar - alphat*alphat);
  
- omegarz = 2*PI*freqrz*1e6;
- alphaz = omegarz/(2*meritz);
- omegabarz = sqrt(omegarz*omegarz - alphaz*alphaz);
+  omegarz = 2*PI*freqrz*1e6;
+  alphaz = omegarz/(2*meritz);
+  omegabarz = sqrt(omegarz*omegarz - alphaz*alphaz);
  
- mu *= PI/180.;
+  // Transport coefficients
+  coe1x = sqrt(betax1/betax0);
+  coe1xbis = alfax0;
+  coe2x = sqrt(betax1*betax0);
+  coe3x = 1/coe1x;
+  coe3xbis = alfax1;
+  coe4x = 1/coe2x;
+  coe4xbis = 1. + alfax1*alfax0;
+  coe4xter = alfax0 - alfax1;
+  coe1y = sqrt(betay1/betay0);
+  coe1ybis = alfay0;
+  coe2y = sqrt(betay1*betay0);
+  coe3y = 1/coe1y;
+  coe3ybis = alfay1;
+  coe4y = 1/coe2y;
+  coe4ybis = 1. + alfay1*alfay0;
+  coe4yter = alfay0 - alfay1;
 
- //f_max = fodol/(4*sin(mu/2.));
- //f_min = -fodol/(4*sin(mu/2.));
+  gammaprev = benergy0*1.e3/0.511;   
+  sx0 = sqrt(betax0*emxN0*1.e-9/gammaprev);
+  sx1 = sqrt(betax1*emxN0*1.e-9/gammaprev);
+  sy0 = sqrt(betay0*emyN0*1.e-9/gammaprev);
+  sy1 = sqrt(betay1*emyN0*1.e-9/gammaprev);
+   
+  cxa = cos(mux0);
+  sxa = sin(mux0);
+  cya = cos(muy0);
+  sya = sin(muy0);
+   
+ 
+  n_diag2 = nstep/10;
+  if(nstep<10) n_diag2=1;
+
+  wakefac = - E*E/(ME*gammaprev*C*C);
+
+  factor2 = RE*sqrt(2*PI)/gammaprev/tstep;
+  fscale2 = factor2/sqrt(2*PI);
   
- if(i_lattice==0) {
-   beta_max = fodol*(1+sin(mu/2.))/sin(mu);
-   beta_min = fodol*(1-sin(mu/2.))/sin(mu);
-   alpha_max = (-1-sin(mu/2.))/cos(mu/2.);
-   alpha_min = (1-sin(mu/2.))/cos(mu/2.);
-   sx_min = sqrt(beta_min*emxN0*1.e-9/gammain);
-   sy_min = sqrt(beta_min*emyN0*1.e-9/gammain);
-   sx_max = sqrt(beta_max*emxN0*1.e-9/gammain);
-   sy_max = sqrt(beta_max*emyN0*1.e-9/gammain);
-
-   sx0 = sx_min;
-   sy0 = sy_max;
-   betax0 = beta_min;
-   betay0 = beta_max;
-
-   coeff1 = sqrt(beta_max/beta_min);
-   coeff2 = sqrt(beta_max*beta_min);
-   coeff3 = 1/coeff1;
-   coeff4 = 1/coeff2;
-   
-   nstep = nfodo*2;
-   gammaprev = gammain;
+  i_dip = 0;
+  bsol = 0.;
+  bgrad = 0.;
+  bdip = 0.;
  
-   cxya = cos(mu/2.);
-   sxya = sin(mu/2.);
- }
- else {
-   coeff1x = sqrt(betax1/betax0);
-   coeff1xbis = alfax0;
-   coeff2x = sqrt(betax1*betax0);
-   coeff3x = 1/coeff1x;
-   coeff3xbis = alfax1;
-   coeff4x = 1/coeff2x;
-   coeff4xbis = 1. + alfax1*alfax0;
-   coeff4xter = alfax0 - alfax1;
-   coeff1y = sqrt(betay1/betay0);
-   coeff1ybis = alfay0;
-   coeff2y = sqrt(betay1*betay0);
-   coeff3y = 1/coeff1y;
-   coeff3ybis = alfay1;
-   coeff4y = 1/coeff2y;
-   coeff4ybis = 1. + alfay1*alfay0;
-   coeff4yter = alfay0 - alfay1;
+  eel = 1.0;
+  epr = 1.0;
 
-   gammaprev = benergy0*1.e3/0.511;   
-   sx0 = sqrt(betax0*emxN0*1.e-9/gammaprev);
-   sx1 = sqrt(betax1*emxN0*1.e-9/gammaprev);
-   sy0 = sqrt(betay0*emyN0*1.e-9/gammaprev);
-   sy1 = sqrt(betay1*emyN0*1.e-9/gammaprev);
-   
-   cxa = cos(mux0);
-   sxa = sin(mux0);
-   cya = cos(muy0);
-   sya = sin(muy0);
-   
- }
-
- 
- n_diag2 = nstep/10;
- if(nstep<10) n_diag2=1;
-
- wakefac = - E*E/(ME*gammaprev*C*C);
-
- factor2 = RE*sqrt(2*PI)/gammaprev/tstep;
- fscale2 = factor2/sqrt(2*PI);
-  
- i_dip = 0;
- bsol = 0.;
- bgrad = 0.;
- bdip = 0.;
- 
- eel = 1.0;
- epr = 1.0;
-
- sx0fion = 7.e-6;
- sy0fion = 4.e-6;
- drrefill = 1.e-7;
+  sx0fion = 7.e-6;
+  sy0fion = 4.e-6;
+  drrefill = 1.e-7;
  
 }
 
@@ -787,186 +706,76 @@ init_values ()
 
 update_values ()
 
-{  double gamma_ave, dstep0;
+{ double gamma_ave, dstep0;
  
- //using Jean-Bernard's model of field ionization: after the first 4km, full ionization of the beam volume within 10 bunches
- //this is determined by setting ifi=1
+  gammanext = benergy[it]*1.e3/0.511;
+  dstep0 = dstep;
+  dstep = long_pos[it]-long_pos[it-1];
+  tstepp = dstep/C;
+  qion *=dstep/dstep0;
 
- //if(long_pos[it-1]>=11430.)
- if(long_pos[it-1]>=lengthfi)
-   ifi=1;
+  if (i_cool==0){
+    coega = sqrt(gammaprev/gammanext);
+  }
+  if (i_cool==1){
+    coega = gammaprev/gammanext;
+  }
+  coe1x = sqrt(betarrayx[it]/betarrayx[it-1]);
+  coe1xbis = alfarrayx[it-1];
+  coe2x = sqrt(betarrayx[it]*betarrayx[it-1]);
+  coe3x = 1./coe1x;
+  coe3xbis = alfarrayx[it];
+  coe4x = 1./coe2x;
+  coe4xbis = 1. + alfarrayx[it]*alfarrayx[it-1];
+  coe4xter = alfarrayx[it-1] - alfarrayx[it];
+  coe1y = sqrt(betarrayy[it]/betarrayy[it-1]);
+  coe1ybis = alfarrayy[it-1];
+  coe2y = sqrt(betarrayy[it]*betarrayy[it-1]);
+  coe3y = 1./coe1y;
+  coe3ybis = alfarrayy[it];
+  coe4y = 1./coe2y;
+  coe4ybis = 1. + alfarrayy[it]*alfarrayy[it-1];
+  coe4yter = alfarrayy[it-1] - alfarrayy[it];   
 
- if(i_lattice==0){
-   gammanext = gammain + (gammafin - gammain)*(double)it/(double)nstep;
-   
-   sx_min = sqrt(beta_min*emxN0*1.e-9/gammanext);
-   sy_min = sqrt(beta_min*emyN0*1.e-9/gammanext);
-   sx_max = sqrt(beta_max*emxN0*1.e-9/gammanext);
-   sy_max = sqrt(beta_max*emyN0*1.e-9/gammanext);
+  sx0 = sqrt(betarrayx[it-1]*emxN0*1.e-9/gammaprev);
+  sx1 = sqrt(betarrayx[it]*emxN0*1.e-9/gammanext);
+  sy0 = sqrt(betarrayy[it-1]*emyN0*1.e-9/gammaprev);
+  sy1 = sqrt(betarrayy[it]*emyN0*1.e-9/gammanext);
+
+  cxa = cos(muarrayx[it] - muarrayx[it-1]);
+  sxa = sin(muarrayx[it] - muarrayx[it-1]);
+  cya = cos(muarrayy[it] - muarrayy[it-1]);
+  sya = sin(muarrayy[it] - muarrayy[it-1]);
+
+  fprintf(sigma_pr,"%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",long_pos[it-1],gammanext,sx0,sy0,sx1,sy1);
  
-   coeff1 = sqrt(gammaprev/gammanext*beta_max/beta_min);
-   coeff2 = sqrt(gammaprev/gammanext*beta_max*beta_min);
-   coeff3 = sqrt(gammaprev/gammanext*beta_min/beta_max);
-   coeff4 = sqrt(gammaprev/gammanext/beta_max/beta_min);
+  gamma_ave = (gammanext + gammaprev)/2.;
+  factor2 = RE*sqrt(2*PI)/gamma_ave/tstep;
+  fscale2 = factor2/sqrt(2*PI);
 
-   fprintf(sigma_pr,"%13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",gammanext,sx_min,sy_max,sx_max,sy_min);
-
- }
- else{ 
-   gammanext = benergy[it]*1.e3/0.511;
-   dstep0 = dstep;
-   dstep = long_pos[it]-long_pos[it-1];
-   tstepp = dstep/C;
-   qion *=dstep/dstep0;
-
-   if (i_cool==0){
-     coeffga = sqrt(gammaprev/gammanext);
-     coeff1x = sqrt(betarrayx[it]/betarrayx[it-1]);
-     coeff1xbis = alfarrayx[it-1];
-     coeff2x = sqrt(betarrayx[it]*betarrayx[it-1]);
-     coeff3x = 1./coeff1x;
-     coeff3xbis = alfarrayx[it];
-     coeff4x = 1./coeff2x;
-     coeff4xbis = 1. + alfarrayx[it]*alfarrayx[it-1];
-     coeff4xter = alfarrayx[it-1] - alfarrayx[it];
-     coeff1y = sqrt(betarrayy[it]/betarrayy[it-1]);
-     coeff1ybis = alfarrayy[it-1];
-     coeff2y = sqrt(betarrayy[it]*betarrayy[it-1]);
-     coeff3y = 1./coeff1y;
-     coeff3ybis = alfarrayy[it];
-     coeff4y = 1./coeff2y;
-     coeff4ybis = 1. + alfarrayy[it]*alfarrayy[it-1];
-     coeff4yter = alfarrayy[it-1] - alfarrayy[it];   
-   }
-   if (i_cool==1){
-     coeff1x = sqrt(betarrayx[it]/betarrayx[it-1]);
-     coeff2x = sqrt(betarrayx[it]*betarrayx[it-1]);
-     coeff3x = gammaprev/gammanext*sqrt(1./betarrayx[it]*betarrayx[it-1]);
-     coeff4x = gammaprev/gammanext*sqrt(1./betarrayx[it]/betarrayx[it-1]);
-     coeff1y = sqrt(betarrayy[it]/betarrayy[it-1]);
-     coeff2y = sqrt(betarrayy[it]*betarrayy[it-1]);
-     coeff3y = gammaprev/gammanext*sqrt(1./betarrayy[it]*betarrayy[it-1]);
-     coeff4y = gammaprev/gammanext*sqrt(1./betarrayy[it]/betarrayy[it-1]);
-   }
-
-   sx0 = sqrt(betarrayx[it-1]*emxN0*1.e-9/gammaprev);
-   sx1 = sqrt(betarrayx[it]*emxN0*1.e-9/gammanext);
-   sy0 = sqrt(betarrayy[it-1]*emyN0*1.e-9/gammaprev);
-   sy1 = sqrt(betarrayy[it]*emyN0*1.e-9/gammanext);
-
-   cxa = cos(muarrayx[it] - muarrayx[it-1]);
-   sxa = sin(muarrayx[it] - muarrayx[it-1]);
-   cya = cos(muarrayy[it] - muarrayy[it-1]);
-   sya = sin(muarrayy[it] - muarrayy[it-1]);
-
-   fprintf(sigma_pr,"%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",long_pos[it-1],gammanext,sx0,sy0,sx1,sy1);
-
- }
-
- //cut field ionization...
-
- /*
- int im;
-
- if(ifi==1){ 
-   nionpb = 0.;
-   
-   for(im=0;im<nspe;im++) {
-     nionpb += (4.*PI*sx0*sy0*1.e22)*pss[im];
-     prob2[im] = pss[im]/ptot;
-     fprintf(ion_inphase,"\n Field ionization: step %d \n ", it);
-     fprintf(ion_inphase,"\n Probability ion type %d (mass %lf) = %lf\n ",im,am[im],prob2[im]);
-   }
-   
-   nionpb*=3.226e-9*dstep;
-   //ion charge is changed to that coming from field ionization
-   qionfi[0] = nionpb/(double)NION;
-   
- }
- */
- /* 
-
- more detailed module to calculate also the exact area with field ionization
- dropped for the moment because it's too complicated....
-
-    elec_norm_p= 0.;
-    for(pp=0;pp<=1000;pp++){
-    xtst = (double)pp*3./1000.*sx0;
-    ytst = 0.; 
-    xoffc = 0.;
-    yoffc = 0.;
-    ffrank_(&xtst,&ytst,&xoffc,&yoffc,&sx0,&sy0,&pre,&pim,&ili);
-    elec_norm = E*nb/4./PI/EPS0/sz0*sqrt(pre*pre+pim*pim)/5.e9;
-    if(elec_norm>1. && elec_norm_p<1.){
-    xfi1 = xtst;
-    ifi = 1;
-    }
-    if(elec_norm<1. && elec_norm_p>1.)   
-    xfi2 = xtst;
-    elec_norm_p = elec_norm;
+  /* if 'crsec' is function of energy (gammanext) use these lines to update ... 
     
- }
+     nionpb = 0.;
  
- elec_norm_p= 0.;
- for(pp=0;pp<=1000;pp++){
- ytst = (double)pp*3./1000.*sy0;
- xtst = 0.; 
- xoffc = 0.;
- yoffc = 0.;
- ffrank_(&xtst,&ytst,&xoffc,&yoffc,&sx0,&sy0,&pre,&pim,&ili);
- elec_norm = E*nb/4./PI/EPS0/sz0*sqrt(pre*pre+pim*pim)/1.e11;
- if(elec_norm>1 && elec_norm>elec_norm_p)
- yfi1 = ytst;
- else
- yfi2 = ytst;
- elec_norm_p = elec_norm;
- }
- 
- if(ifi==1){ 
- nionpb2 = 0.;
- 
- for(im=0;im<nspe;im++) {
-     nionpb2 += (PI*(yfi1-yfi2)*(xfi1-xfi2)*1.e22)*pss[im];
-     prob2[im] = pss[im]/ptot;
-     fprintf(ion_inphase,"\n Gas ionization \n ");
-     fprintf(ion_inphase,"\n Probability ion type %d (mass %lf) = %lf\n ",im,am[im],prob2[im]);
+     for(im=0;im<nspe;im++) {
+     crsec[im]*=1.;
+     nionpb += crsec[im]*pss[im];
      }
-     
-     nionpb2*=3.226e-9*dstep;
-     //ion charge is enhanced by the contribution coming from field ionization
-     qion += nionpb2/(double)NION;
-
+    
+     the loop that follows is not necessary if the cross section dependence on energy is linear!
+    
+     for(im=0;im<nspe;im++) {
+     accum += crsec[im]*pss[im];
+     prob[im] = accum/nionpb;
      }
- */
- //end field ionization check
- 
- gamma_ave = (gammanext + gammaprev)/2.;
- factor2 = RE*sqrt(2*PI)/gamma_ave/tstep;
- fscale2 = factor2/sqrt(2*PI);
+    
+     nionpb*=3.226e-9*nele*dstep;
+    
+     qion = nionpb/(double)NION;
+    
+  */
 
- /* if 'crsec' is function of energy (gammanext) use these lines to update ... 
-    
- nionpb = 0.;
- 
- for(im=0;im<nspe;im++) {
- crsec[im]*=1.;
-    nionpb += crsec[im]*pss[im];
-    }
-    
-    the loop that follows is not necessary if the cross section dependence on energy is linear!
-    
-    for(im=0;im<nspe;im++) {
-    accum += crsec[im]*pss[im];
-    prob[im] = accum/nionpb;
-    }
-    
-    nionpb*=3.226e-9*nele*dstep;
-    
-    qion = nionpb/(double)NION;
-    
- */
-
- wakefac = - E*E/(ME*gamma_ave*C*C);
+  wakefac = - E*E/(ME*gamma_ave*C*C);
  
 }
 
@@ -1574,116 +1383,76 @@ initialization ()
 { double xkick, ykick, xsum, ysum, xpsum, ypsum, u, v, s;
   long i,j;  
 
- /*
- if(i_lattice==0) { 
-   sx0 = sx_min;
-   sy0 = sy_max;
-   betax0 = beta_min;
-   betay0 = beta_max;
- }
- */
+  for (j=0; j<NBUN; j++) {
+    xsum = 0.0;
+    ysum = 0.0;
+    xpsum = 0.0;
+    ypsum = 0.0;
+    xkick = 0.0;
+    ykick = 0.0;
 
- for (j=0; j<NBUN; j++) {
-   xsum = 0.0;
-   ysum = 0.0;
-   xpsum = 0.0;
-   ypsum = 0.0;
-   xkick = 0.0;
-   ykick = 0.0;
+    switch (i_kick){
 
-   switch (i_kick){
+    case 0:
+      break;
 
-   case 0:
-     break;
+    case 1:
+      xkick = nxkick0*sx0;
+      ykick = nykick0*sy0;
+      break;
 
-   case 1:
-     xkick = nxkick0*sx0;
-     ykick = nykick0*sy0;
-     break;
+    case 2:
+      xkick = nxkick0*sx0*sin(2*PI*(double)j*(double)h_pertx/(double)(NBUN-1));
+      ykick = nykick0*sy0*sin(2*PI*(double)j*(double)h_perty/(double)(NBUN-1));
+      break;
 
-   case 2:
-     xkick = nxkick0*sx0*sin(2*PI*(double)j*(double)h_pertx/(double)(NBUN-1));
-     ykick = nykick0*sy0*sin(2*PI*(double)j*(double)h_perty/(double)(NBUN-1));
-     break;
+    case 3:
+      xkick = nxkick0*sx0*(2.*rand () / (double)RAND_MAX - 1.);
+      ykick = nykick0*sy0*(2.*rand () / (double)RAND_MAX- 1.);
+      break;
 
-   case 3:
-     xkick = nxkick0*sx0*(2.*rand () / (double)RAND_MAX - 1.);
-     ykick = nykick0*sy0*(2.*rand () / (double)RAND_MAX- 1.);
-     break;
+    default:
+      break;
 
-   default:
-     break;
+    }
 
-   }
-
-   switch(i_lattice){
-
-   case 0:
-     for (i=j*NELB; i<(j+1)*NELB; i++){ 
-       do { u = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
-       v = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
-       s = u*u + v*v ; }
-       while (s >= 1.0) ;
-     
-       xel[i] = sx0 * u * sqrt(-2.0*log(s)/s);
-       xpel[i] = sx0/betax0 * v * sqrt(-2.0*log(s)/s);
-     
-     
-       do { u = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
-       v = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
-       s = u*u + v*v ; }
-       while (s >= 1.0) ;
-     
-       yel[i] = sy0 * u * sqrt(-2.0*log(s)/s);
-       ypel[i] = sy0/betay0 * v * sqrt(-2.0*log(s)/s);
-     
-       xsum += xel[i];
-       ysum += yel[i];
-       xpsum += xpel[i];
-       ypsum += ypel[i];
-     }
-     break;
-     
-   case 1:
-     for (i=j*NELB; i<(j+1)*NELB; i++){
+    for (i=j*NELB; i<(j+1)*NELB; i++){
        
-       u = sqrt(-2.0 * log( rand()/(double)(RAND_MAX) ));
-       v = 2.0*PI * ( rand()/(double)(RAND_MAX) );
+      u = sqrt(-2.0 * log( rand()/(double)(RAND_MAX) ));
+      v = 2.0*PI * ( rand()/(double)(RAND_MAX) );
 
-       xel[i] = sx0 * u * cos(v);
-       xpel[i] = -sx0/betax0 * u * (sin(v) + alfax0 * cos(v));
+      xel[i] = sx0 * u * cos(v);
+      xpel[i] = -sx0/betax0 * u * (sin(v) + alfax0 * cos(v));
 
-       u = sqrt(-2.0 * log( rand()/(double)(RAND_MAX) ));
-       v = 2.0*PI * ( rand()/(double)(RAND_MAX) );
+      u = sqrt(-2.0 * log( rand()/(double)(RAND_MAX) ));
+      v = 2.0*PI * ( rand()/(double)(RAND_MAX) );
 
-       yel[i] = sy0 * u * cos(v);
-       ypel[i] = -sy0/betay0 * u * (sin(v) + alfay0 * cos(v));
+      yel[i] = sy0 * u * cos(v);
+      ypel[i] = -sy0/betay0 * u * (sin(v) + alfay0 * cos(v));
 
-       xsum += xel[i];
-       ysum += yel[i];
-       xpsum += xpel[i];
-       ypsum += ypel[i];
-     }
-     break;
-   } 
+      xsum += xel[i];
+      ysum += yel[i];
+      xpsum += xpel[i];
+      ypsum += ypel[i];
+    }
    
-   xave = xsum/(double)NELB;
-   yave = ysum/(double)NELB;
-   xpave = xpsum/(double)NELB;
-   ypave = ypsum/(double)NELB;
-   /*   
-   for (i=j*NELB; i<(j+1)*NELB; i++)
-     { xel[i] += xkick - xave;
-     xpel[i] += -xpave;
-     yel[i] += ykick - yave;
-     ypel[i] += -ypave;
-     }
-   */
-   for (i=j*NELB; i<(j+1)*NELB; i++)
-     { xel[i] += xkick;
-     yel[i] += ykick;
-     }
- }
+    xave = xsum/(double)NELB;
+    yave = ysum/(double)NELB;
+    xpave = xpsum/(double)NELB;
+    ypave = ypsum/(double)NELB;
+    /*   
+	 for (i=j*NELB; i<(j+1)*NELB; i++)
+	 { xel[i] += xkick - xave;
+	 xpel[i] += -xpave;
+	 yel[i] += ykick - yave;
+	 ypel[i] += -ypave;
+	 }
+    */
+    for (i=j*NELB; i<(j+1)*NELB; i++)
+      { xel[i] += xkick;
+	yel[i] += ykick;
+      }
+  }
 
 }
 
@@ -1829,7 +1598,7 @@ open_files ()
  strcat (ion_filename,"_ionph.dat") ;
  ion_inphase = fopen(ion_filename,"w");
  
- for(i=0;i<15;i++){
+ for(i=0;i<11;i++){
    itoa(i,chap);
    strcpy (iini_filename,filename) ;
    strcat (iini_filename,chap) ;
@@ -3194,12 +2963,9 @@ int main (int argc, char *argv[])
   printf ("\t\t Complete\n") ;
 
   if(iion==1)  
-    grid=grid_init_comp(128,128,2);
+    grid=grid_init_comp(256,256,2);
   
   fprintf (ion_inphase, "electrons per bunch = %d\t  ions per bunch = %d\t number of bunches = %d\n",NELB,NION,NBUN);
-  fprintf (ion_inphase, "beta function values    -> beta_max = %g  beta_min = %g\n",beta_max,beta_min);  //ele-Mar05  
-  //fprintf (ion_inphase, "initial grid sizes -> gridextx = %g  gridexty = %g\n",gridextx,gridexty);
-
 
   /* Loop over turns starts */
 
@@ -3223,8 +2989,6 @@ int main (int argc, char *argv[])
 	ypave = 0.0;
 	xemit = 0.0;
 	yemit = 0.0;
-	//invary = 0.0;
-	//invarx = 0.0;
 	
 	for(imain=lmain*NELB*NBUN/3; imain<(lmain+1)*NELB*NBUN/3; imain++) { 
 	  xave += xel[imain];
@@ -3245,8 +3009,6 @@ int main (int argc, char *argv[])
 	  sypsize += (ypel[imain] - ypave)*(ypel[imain] - ypave); 
 	  xemit += (xel[imain] - xave)*(xpel[imain] - xpave);
 	  yemit += (yel[imain] - yave)*(ypel[imain] - ypave);
-	  //invary += (ypr[imain] - yave)*(ypr[imain] - yave) + betay0*betay0*(ypp[imain] - ypave)*(ypp[imain]-ypave);
-	  //invarx += (xpr[imain] - xave)*(xpr[imain] - xave) + betax0*betax0*(xpp[imain] - xpave)*(xpp[imain]-xpave);
 	}
 	  
 	sxsize = sqrt(sxsize/(double)(NELB*NBUN/3));
@@ -3255,8 +3017,6 @@ int main (int argc, char *argv[])
 	sypsize /= (double)(NELB*NBUN/3);
 	xemit /= (double)(NELB*NBUN/3);
 	yemit /= (double)(NELB*NBUN/3);
-	//invarx /= (double)(NELB*NBUNCH/3);
-	//invary /= (double)(NELB*NBUNCH/3);
 	  
 	if(lmain==0)
 	  fprintf(centr_pr,"%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  ",
@@ -3289,29 +3049,11 @@ int main (int argc, char *argv[])
 	localemity = sqrt(sy*sy*syp2 - syppr*syppr);
 	    
 	/* offsets and rms sizes of the bunches are printed to file          */
-	if(i_lattice==0) {
-	  if(it % n_diag == 0 || it == 1) { 
-	    if(it%2==1)
-	      fprintf(trainhdtl_pr, "%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",
-		      (double)jmain*bsp, xoff, yoff, sx, sy, 
-		      sx*sx/beta_min*gammaprev*1.e9, sy*sy/beta_max*gammaprev*1.e9, 
-		      localemitx*gammaprev*1.e9, localemity*gammaprev*1.e9);
-	    else
-	      fprintf(trainhdtl_pr, "%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",
-		      (double)jmain*bsp, xoff, yoff, sx, sy, 
-		      sx*sx/beta_max*gammaprev*1.e9, sy*sy/beta_min*gammaprev*1.e9, 
-		      localemitx*gammaprev*1.e9, localemity*gammaprev*1.e9);
-	  }
-	}
-	else {
-	  if(it % n_diag == 0 || it == 1) 
-	    fprintf(trainhdtl_pr, "%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",
-		    (double)jmain*bsp, xoff, yoff, sx, sy, 
-		    sx*sx/betarrayx[it-1]*gammaprev*1.e9, sy*sy/betarrayy[it-1]*gammaprev*1.e9, 
-		    localemitx*gammaprev*1.e9, localemity*gammaprev*1.e9);
-	}
-	    
-	//printf ("\n bunch number = %d, sx = %lf, sy = %lf, xoff = %lf, yoff = %lf\n",jmain,sx,sy,xoff,yoff);
+	if(it % n_diag == 0 || it == 1) 
+	  fprintf(trainhdtl_pr, "%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",
+		  (double)jmain*bsp, xoff, yoff, sx, sy, 
+		  sx*sx/betarrayx[it-1]*gammaprev*1.e9, sy*sy/betarrayy[it-1]*gammaprev*1.e9, 
+		  localemitx*gammaprev*1.e9, localemity*gammaprev*1.e9);
 	    
 	if (iion==1) {
 	      
@@ -3342,10 +3084,6 @@ int main (int argc, char *argv[])
 	    fprintf(ion_iniy[abs_index],"\n\n");
 	  }
 	      
-	  //gridextx = 1.1*fmax(xion_max,6*sxs[jmain]);
-	  //gridexty = 1.1*fmax(yion_max,6*sys[jmain]);
-	  //printf ("\n bunch number = %d, gridextx = %lf, gridexty = %lf \n",jmain,gridextx*1.e9,gridexty*1.e9);
-	  
 	  if(xion_max < fabs(xsion)+4*sxsion && yion_max < fabs(ysion)+4*sysion) {    
 	    gridextx = 1.1*fmax(xion_max,10.*xel_max[jmain]);
 	    gridexty = 1.1*fmax(yion_max,10.*yel_max[jmain]); 
@@ -3380,6 +3118,7 @@ int main (int argc, char *argv[])
 	  }
 	  //printf ("\n bunch number = %d, qe0 = %lf, qion = %lf \n",jmain,qe0,qion);
 	  
+
 	  /* calculate the forces */
 	  
 	  field_calculate(grid);
@@ -3484,77 +3223,30 @@ int main (int argc, char *argv[])
       }     //closes the loop on bunches ->jmain
 	
       /* loop over all the bunch particles starts, for the transformation of
-	   their phase space coordinates all through the piece of ring
-	   between two subsequent kicks...                                      */
+	 their phase space coordinates all through the piece of ring
+	 between two subsequent kicks...                                      */
 	
       for(kmain=0; kmain<NELB*NBUN; kmain++) {
 	xel0 = xel[kmain];
 	xpel0 = xpel[kmain];          
 	yel0 = yel[kmain];
 	ypel0 = ypel[kmain];
-	  
-	/*
-	  xx1 = x0;
-	  xxp1 = xp0;
-	  yy1 = ips0;
-	  yyp1 = yp0;
-	  
-	  if(i_oct==1)
-	  { epsx = (x0*x0 + xp0*xp0*betax0*betax0)/betax0;
-	  epsy = (ips0*ips0 + yp0*yp0*betay0*betay0)/betay0;
-	  
-	  // Remember that epsx = 2*actx;  epsy = 2*acty   
-	    
-	  cxa = cos(2*PI*(htune + qpxx*epsx + qpxy*epsy)/(double)nkick);
-	  sxa = sin(2*PI*(htune + qpxx*epsx + qpxy*epsy)/(double)nkick);
-	  cya = cos(2*PI*(vtune + qpxy*epsx + qpyy*epsy)/(double)nkick);
-	  sya = sin(2*PI*(vtune + qpxy*epsx + qpyy*epsy)/(double)nkick);
-	  
-	  }
-	    
-	  if(i_coupl==1)
-	  { xxp1 -= key_xy*yy1;
-	  yyp1 -= key_xy*xx1;
-	  }
-	*/
-	if(i_lattice==0) {      
-	  if(it%2==1) {		
-	    /* horizontal coordinates transformation - linear rotation          */
-	    xel[kmain] = coeff1 * cxya * xel0 + coeff2 * sxya * xpel0;
-	    xpel[kmain] = -coeff4 * sxya * xel0 + coeff3 * cxya * xpel0;
-	    
-	    /* vertical coordinates transformation - linear rotation            */
-	    
-	    yel[kmain] = coeff3 * cxya * yel0 + coeff2 * sxya * ypel0;
-	    ypel[kmain] = -coeff4 * sxya * yel0 + coeff1 * cxya * ypel0;
-	  }
-	  else {
-	    xel[kmain] = coeff3 * cxya * xel0 + coeff2 * sxya * xpel0;
-	    xpel[kmain] = -coeff4 * sxya * xel0 + coeff1 * cxya * xpel0;
-	    yel[kmain] = coeff1 * cxya * yel0 + coeff2 * sxya * ypel0;
-	    ypel[kmain] = -coeff4 * sxya * yel0 + coeff3 * cxya * ypel0;
-	  }
+
+	xel[kmain] = coe1x * (cxa + coe1xbis * sxa) * xel0 + coe2x * sxa * xpel0;
+	yel[kmain] = coe1y * (cya + coe1ybis * sya) * yel0 + coe2y * sya * ypel0;
+	xpel[kmain] = coe4x * (-coe4xbis * sxa + coe4xter * cxa) * xel0 + coe3x * (cxa - coe3xbis * sxa) * xpel0;
+	ypel[kmain] = coe4y * (-coe4ybis * sya + coe4yter * cya) * yel0 + coe3y * (cya - coe3ybis * sya) * ypel0;
+
+	if (i_cool == 0) {
+	  xel[kmain] *= coega;
+	  yel[kmain] *= coega;
+	  xpel[kmain] *= coega;
+	  ypel[kmain] *= coega;
+	} 
+	if (i_cool == 1) {
+	  xpel[kmain] *= coega;
+	  ypel[kmain] *= coega;
 	}
-	else {
-	  xel[kmain] = coeffga * (coeff1x * (cxa + coeff1xbis * sxa) * xel0 + coeff2x * sxa * xpel0);
-	  xpel[kmain] = coeffga * (coeff4x * (-coeff4xbis * sxa + coeff4xter * cxa) * xel0 + coeff3x * (cxa - coeff3xbis * sxa) * xpel0);
-	  yel[kmain] = coeffga * (coeff1y * (cya + coeff1ybis * sya) * yel0 + coeff2y * sya * ypel0);
-	  ypel[kmain] = coeffga * (coeff4y * (-coeff4ybis * sya + coeff4yter * cya) * yel0 + coeff3y * (cya - coeff3ybis * sya) * ypel0);
-	}
-	  
-	/*
-	  if (kmain % 500==0 && (it-1)%n_diag==0)
-	  fprintf(ion_phase,"%d \t%13.8e\t%13.8e\t%13.8e\t%13.8e\t%13.8e\t%13.8e\n",kmain,xel[kmain],xpel[kmain],yel[kmain],ypel[kmain]); 
-	  }
-	  
-	  if (it %nkick==1) //(it % (n_diag/2)==0)
-	  {
-	  fprintf(track_pr,"\n");
-	  fprintf(track_pr,"\n");
-	  }
-	  
-	  
-	*/
       }
       
       gammaprev = gammanext;
@@ -3562,21 +3254,6 @@ int main (int argc, char *argv[])
       fprintf(trainhdtl_pr,"\n");
       fprintf(trainhdtl_pr,"\n");
       fprintf(ions_pr, "\n\n");
-      //fprintf(prot_phase,"\n");
-      //fprintf(prot_phase,"\n");
-      //fprintf(prot_ini,"\n");
-      //fprintf(prot_ini,"\n");
-      
-      /*
-	for (lmain=0;lmain<499;lmain++)
-	{ enedis[lmain] /= qt_imp;
-	fprintf (elwall_ene, "%13.8e  %13.8e\n",(double)lmain*enestep+enestep/2,enedis[lmain]);
-	}
-	fprintf (elwall_ene,"\n");
-	fprintf (elwall_ene,"\n");
-      */
-      
-      
       
     }
     
@@ -3598,7 +3275,7 @@ int main (int argc, char *argv[])
   fclose(centr_pr);
   fclose(trainhdtl_pr);
   fclose(ele_phase);
-  for(lmain=0;lmain<10;lmain++) {  
+  for(lmain=0;lmain<11;lmain++) {  
     fclose(ion_inix[lmain]);
     fclose(ion_iniy[lmain]);
     fclose(samp_ion[lmain]);

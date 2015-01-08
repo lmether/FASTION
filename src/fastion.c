@@ -69,7 +69,6 @@ typedef struct /* GRID */
   double min_x,max_x,min_y,max_y;
   double cut_x,cut_y;
   double *rho1,*rho2,*phi1,*phi2,*dist,*temp,*pot;
-  int integration_method,distribution,interpolation;
 } GRID;
 
 /* Definition of the external variables   */
@@ -111,7 +110,6 @@ long  mmain                 ,   /* down to mmain -> indices used in main for loo
       iwake_flag            ,   /* flag for the wake field: input parameter                      */
       i_pipe                ,   /* flag for gemoetry in effective wake calculation
                                    0 -> circular (a=b)  1 -> flat  (a>>b)                        */
-      i_dip                 ,
       ionoutgrid            ,   /* counter of ions out of the grid                               */
       ntemp                 ,   /* temporary number of ions while bunches are passing            */
       i_kick                ,   /* switch on the type of initial kick given to the train
@@ -221,10 +219,6 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        yion_max             ,   /* [m] minimum ion y position                       */
        factor2              ,   /* auxiliary parameter for the force calculation    */
        fscale2              ,   /* auxiliary parameter for the force calculation    */
-
-       eel                  ,   /* auxiliary parameter for the force calculation    */
-       epr                  ,   /* auxiliary parameter for the force calculation    */
-
        wakefac              ,   /* factor for the wake field kick                   */
        tstepp               ,   /* time step between two interactions               */
        tstep                ,   /* time step during the interaction bunch-cloud     */
@@ -276,9 +270,6 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        ss0                  , 
        ss1                  ,   /* --------------------------------------------     */ 
        benergy0             ,   /* --------------------------------------------     */ 
-       bsol                 ,
-       bgrad                , 
-       bdip                 ,
        kick_xi              ,   /* velocity x-kick from each bunch on each ion      */ 
        kick_yi              ,   /* velocity y-kick from each slice on each ion      */
        kick_xe              ,   /* x-kick on each bunch electron                    */
@@ -680,14 +671,6 @@ init_values ()
   factor2 = RE*sqrt(2*PI)/gammaprev/tstep;
   fscale2 = factor2/sqrt(2*PI);
   
-  i_dip = 0;
-  bsol = 0.;
-  bgrad = 0.;
-  bdip = 0.;
- 
-  eel = 1.0;
-  epr = 1.0;
-
   sx0fion = 7.e-6;
   sy0fion = 4.e-6;
   drrefill = 1.e-7;
@@ -1658,12 +1641,28 @@ xmalloc (size_t size) {
   exit(1);
 }
 
-/*
-  Distributes the beam particles for field calculation
-*/
+/*****************************************************************
+ Routines for grid initialization
+******************************************************************/
 
-void particles_distribute(GRID *grid,double x[],double y[],int n, int i_which,
-                          double n_macro)
+#include "fourtrans22.c"
+// #include "../../../fourtrans2.c"
+
+double f_potential(double x,double y)
+{
+  double sum;
+  sum=x*y*(log(x*x+y*y)-3.0)+x*x*atan(y/x)+y*y*atan(x/y);
+  return sum;
+}
+
+
+
+
+/*****************************************************************
+ Particle distribution routines
+******************************************************************/
+
+void particles_distribute(GRID *grid,double x[],double y[],int n,int i_which,double n_macro)
 {
   int i,j,i1,i2;
   double d_x,d_y,delta_x_i,delta_y_i,offset_x,offset_y;
@@ -1679,6 +1678,12 @@ void particles_distribute(GRID *grid,double x[],double y[],int n, int i_which,
   max_x=grid->max_x;
   cut_y=grid->cut_y;
   max_y=grid->max_y;
+  d_x=grid->delta_x;
+  d_y=grid->delta_y;
+  delta_x_i=1.0/grid->delta_x;
+  delta_y_i=1.0/grid->delta_y;
+  offset_x=grid->offset_x;
+  offset_y=grid->offset_y;
 
   if (i_which==1) {
     rho=grid->rho1;
@@ -1686,103 +1691,34 @@ void particles_distribute(GRID *grid,double x[],double y[],int n, int i_which,
   else {
     rho=grid->rho2;
   }
-  d_x=grid->delta_x;
-  d_y=grid->delta_y;
-  delta_x_i=1.0/grid->delta_x;
-  delta_y_i=1.0/grid->delta_y;
-  offset_x=grid->offset_x;
-  offset_y=grid->offset_y;
   for (i=0;i<n_x*n_y;i++){
     rho[i]=0.0;
   }
-  switch (grid->distribution) {
-  case 1:
-    for (i=0;i<n;i++){
-      i1=(int)floor(x[i]*delta_x_i+offset_x);
-      i2=(int)floor(y[i]*delta_y_i+offset_y);
-      if ((i1>=0)&&(i1<n_x)&&(i2>=0)&&(i2<n_y)){
-        rho[i1*n_y+i2] += n_macro;
-        distribute_in++;
-      }
-      else{
-        distribute_out++;
-      }
-    }
-    break;
-  case 2:
-    for (i=0;i<n;i++){
-      if ((x[i]>=-cut_x+0.5*d_x)&&(x[i]<max_x+0.5*d_x)&&(y[i]>=-cut_y+0.5*d_y)&&(y[i]<max_y+0.5*d_y)){
-	h_x=(x[i]*delta_x_i+offset_x-0.5);
-	i1=(int)h_x;
+  for (i=0;i<n;i++){
+    if ((x[i]>=-cut_x+0.5*d_x)&&(x[i]<max_x+0.5*d_x)&&(y[i]>=-cut_y+0.5*d_y)&&(y[i]<max_y+0.5*d_y)){
+      h_x=(x[i]*delta_x_i+offset_x-0.5);
+      i1=(int)h_x;
 	h_x -= (float)i1;
-	h_y=(y[i]*delta_y_i+offset_y-0.5);
-	i2=(int)h_y;
+      h_y=(y[i]*delta_y_i+offset_y-0.5);
+      i2=(int)h_y;
 	h_y -= (float)i2;
-	  j=i1*n_y+i2;
-	  rho[j] += (1.0-h_x)*(1.0-h_y)*n_macro;
-	  j=(i1+1)*n_y+i2;
-	  rho[j] += h_x*(1.0-h_y)*n_macro;
-	  j=i1*n_y+i2+1;
-	  rho[j] += (1.0-h_x)*h_y*n_macro;
-	  j=(i1+1)*n_y+i2+1;
-	  rho[j] += h_x*h_y*n_macro;
-	  distribute_in++;
+      j=i1*n_y+i2;
+      rho[j] += (1.0-h_x)*(1.0-h_y)*n_macro;
+      j=(i1+1)*n_y+i2;
+      rho[j] += h_x*(1.0-h_y)*n_macro;
+      j=i1*n_y+i2+1;
+      rho[j] += (1.0-h_x)*h_y*n_macro;
+      j=(i1+1)*n_y+i2+1;
+      rho[j] += h_x*h_y*n_macro;
+      distribute_in++;
 	}
 	else{
 	  distribute_out++;
 	}
     }
-    break;
-  }
-  /*
-    double densita;
-  if (it==1){
-  if (i_which==2){
-     for (i1=0;i1<n_x;i1++)
-     {  densita=0.;
-      for (i2=0;i2<n_y;i2++)
-	densita+=rho[i1*n_y+i2];
-  	fprintf(ele_ini,"%d %13.8e\n",i1,densita); 
-	//	printf("%d %13.8e\n",i1,densita); 
-       
-     }
-      fprintf(ele_ini,"\n");
-     fprintf(ele_ini,"\n");
-  }}
-  */
-  /*
-  if (it==1){
-  if (i_which==2){
-    for (i2=0;i2<n_y;i2++)
-     {  densita=0.;
-      for (i1=0;i1<n_x;i1++)
-	densita+=rho[i1*n_y+i2];
-  	fprintf(prot_ini,"%d %13.8e\n",i2,densita); 
-	
-     }
-    fprintf(prot_ini,"\n");
-    fprintf(prot_ini,"\n");
-
-
-  }}
-  */
- 
-  /*
-     if (i_which==2){
-     for (i1=0;i1<n_x;i1++)
-      for (i2=0;i2<n_y;i2++)
-  	fprintf(ele_ini,"%d %d %13.8e\n",i1,i2,rho[i1*n_y+i2]); //, sqrt((i1-n_x/2)*(i1-n_x/2)+(i2-n_y/2)*(i2-n_y/2))); 
-	//	printf("%d %d %13.8e\n",i1,i2,rho[i1*n_y+i2]); }
-	  
-     // fprintf(ele_ini,"\n");
-     // fprintf(ele_ini,"\n");
-     }
-  */
-
 }
 
-void particles_distribute2(GRID *grid,double x[],double y[],int n,int i_which, 
-                           double q[])
+void particles_distribute2(GRID *grid,double x[],double y[],int n,double q[])
 {
   int i,j,i1,i2,ind_charge;
   double d_x,d_y,delta_x_i,delta_y_i,offset_x,offset_y;
@@ -1798,68 +1734,109 @@ void particles_distribute2(GRID *grid,double x[],double y[],int n,int i_which,
   max_x=grid->max_x;
   cut_y=grid->cut_y;
   max_y=grid->max_y;
-
-  if (i_which==1) {
-    rho=grid->rho1;
-  }
-  else {
-    rho=grid->rho2;
-  }
   d_x=grid->delta_x;
   d_y=grid->delta_y;
   delta_x_i=1.0/grid->delta_x;
   delta_y_i=1.0/grid->delta_y;
   offset_x=grid->offset_x;
   offset_y=grid->offset_y;
+
+  rho=grid->rho2;
+
   for (i=0;i<n_x*n_y;i++){
     rho[i]=0.0;
   }
-  switch (grid->distribution) {
-  case 1:
-    for (i=0;i<n;i++){
+
+  for (i=0;i<n;i++){
+    if ((x[i]>=-cut_x+0.5*d_x)&&(x[i]<max_x+0.5*d_x)&&(y[i]>=-cut_y+0.5*d_y)&&(y[i]<max_y+0.5*d_y)){
       ind_charge=i/NION;
-      i1=(int)floor(x[i]*delta_x_i+offset_x);
-      i2=(int)floor(y[i]*delta_y_i+offset_y);
-      if ((i1>=0)&&(i1<n_x)&&(i2>=0)&&(i2<n_y)){
-        rho[i1*n_y+i2] += q[ind_charge];
-        distribute_in++;
-      }
-      else{
-        distribute_out++;
-      }
-    }
-    break;
-  case 2:
-    for (i=0;i<n;i++){
-      if ((x[i]>=-cut_x+0.5*d_x)&&(x[i]<max_x+0.5*d_x)&&(y[i]>=-cut_y+0.5*d_y)&&(y[i]<max_y+0.5*d_y)){
-	ind_charge=i/NION;
-	h_x=(x[i]*delta_x_i+offset_x-0.5);
-	i1=(int)h_x;
+      h_x=(x[i]*delta_x_i+offset_x-0.5);
+      i1=(int)h_x;
 	h_x -= (float)i1;
-	h_y=(y[i]*delta_y_i+offset_y-0.5);
-	i2=(int)h_y;
+      h_y=(y[i]*delta_y_i+offset_y-0.5);
+      i2=(int)h_y;
 	h_y -= (float)i2;
-        j=i1*n_y+i2;
-        rho[j] += (1.0-h_x)*(1.0-h_y)*q[ind_charge];
-        j=(i1+1)*n_y+i2;
-        rho[j] += h_x*(1.0-h_y)*q[ind_charge];
-        j=i1*n_y+i2+1;
-        rho[j] += (1.0-h_x)*h_y*q[ind_charge];
-        j=(i1+1)*n_y+i2+1;
-        rho[j] += h_x*h_y*q[ind_charge];
-        distribute_in++;
-      }
-      else{
-        distribute_out++;
-      }
+      j=i1*n_y+i2;
+      rho[j] += (1.0-h_x)*(1.0-h_y)*q[ind_charge];
+      j=(i1+1)*n_y+i2;
+      rho[j] += h_x*(1.0-h_y)*q[ind_charge];
+      j=i1*n_y+i2+1;
+      rho[j] += (1.0-h_x)*h_y*q[ind_charge];
+      j=(i1+1)*n_y+i2+1;
+      rho[j] += h_x*h_y*q[ind_charge];
+      distribute_in++;
     }
-    break;
+    else{
+      distribute_out++;
+    }
   }
 }
 
 /**********************************************/
 /* Routines for the calculation of the fields */
 /**********************************************/
+
+/* This routine calculates the potentials with the help of the fast fourier
+   transform */
+
+void fold_fft(double *rho1,double *rho2,double *dist,double *phi1,
+              double *phi2,double temp[],int n_x,int n_y)
+{
+  double help;
+  int i1,i2,i,j,j0;
+  int nn[2];
+
+  /* return no field */
+  /* fill array with charge */
+
+  for (i=0;i<n_x*n_y*8;i++) {
+    temp[i]=0.0;
+  }
+  for (i1=0;i1<n_x;i1++) {
+    for (i2=0;i2<n_y;i2++) {
+      j=2*(i1*2*n_y+i2);
+      j0=i1*n_y+i2;
+      temp[j]=rho1[j0];
+      temp[j+1]=rho2[j0];
+    }
+  }
+  
+  nn[0]=2*n_y;
+  nn[1]=2*n_x;
+  i1=2;
+  i2=1;
+  fourtrans3(temp,nn,i2);
+  for (i=0;i<n_x*n_y*4;i++) {
+    j=2*i;
+    help=temp[j]*dist[j]-temp[j+1]*dist[j+1];
+    temp[j+1]=temp[j+1]*dist[j]+temp[j]*dist[j+1];
+    temp[j]=help;
+  }
+  i2=-1;
+  fourtrans3(temp,nn,i2);
+  for (i1=0;i1<n_x;i1++) {
+    for (i2=0;i2<n_y;i2++) {
+      phi1[i1*n_y+i2]=temp[2*(i1*2*n_y+i2)]/((double)4*n_x*n_y);
+      phi2[i1*n_y+i2]=temp[2*(i1*2*n_y+i2)+1]/((double)4*n_x*n_y);
+    }
+  }
+}
+
+
+void field_calculate(GRID *grid)
+{
+  fold_fft(grid->rho1,grid->rho2,grid->dist,grid->phi1,grid->phi2,
+	   grid->temp,grid->n_cell_x,grid->n_cell_y);
+}
+
+
+
+
+
+/*****************************************************************
+ Auxhiliary routines
+******************************************************************/
+
 
 /* This routine calculates the potentials on the outer boundary of the grid
    by direct calculation. */
@@ -1928,174 +1905,69 @@ void foldfronts (double *rho,double *dist,double *phi,int n_x,int n_y)
 }
 
 
- #include "fourtrans22.c"
-// #include "../../../fourtrans2.c"
+void field_poissonbc(GRID *grid)
+
+{ 
+  double *rho11,*rho22,*work,*rcos,ddx,ddy;
+  int nn,mm,kloc,nloc;
+  
+  ddx     = 1.0;
+  ddy     = grid->delta_y/grid->delta_x;
+  mm     = grid->n_cell_x  ; 
+  nn     = grid->n_cell_y ; 
+
+  rho11=dvector(0,mm*nn-1);
+  rho22=dvector(0,mm*nn-1);
+  work=dvector(0,mm+nn+2);
+  rcos=dvector(0,mm*nn-1);
+
+  for (kloc=0; kloc<mm; kloc++)
+     for (nloc=0; nloc<nn; nloc++)
+       {
+	 /* BUG, fixed Gio'05
+	 if (kloc!=0 && nloc!=0) 
+	   rcos[kloc*mm + nloc]=1.0/(2.0*((cos((double)(kloc)*PI/mm)-1.0)/(ddx*ddx)+(cos((double)(nloc)*PI/nn)-1.0)/(ddy*ddy)))*4.0/(mm*nn);
+	 else
+	   rcos[0]=0.;
+
+        rho11[kloc*mm + nloc] = (4*PI)*(*(grid->rho1 + nloc*nn + kloc));
+        rho22[kloc*mm + nloc] = (4*PI)*(*(grid->rho2 + nloc*nn + kloc));
+	*/
+	
+        rcos[kloc*nn + nloc]=1.0/(2.0*((cos((double)(kloc)*PI/mm)-1.0)/(ddx*ddx)+(cos((double)(nloc)*PI/nn)-1.0)/(ddy*ddy)))*4.0/(mm*nn);
+
+        rho11[kloc*nn + nloc] = (4*PI)*(*(grid->rho1 + kloc*nn + nloc));
+        rho22[kloc*nn + nloc] = (4*PI)*(*(grid->rho2 + kloc*nn + nloc));
+	
+      }
+
+  potfft_(rho22,rcos,work,&mm,&nn); 
+  potfft_(rho11,rcos,work,&mm,&nn);
 
 
-/* Fast fourier transformation routine used by foldfft */
 
-void fourtrans (double* data,int nn[],int isign)
-{
-  /* System generated locals */
-  int i__1, i__2, i__3, i__4, i__5, i__6;
-  double d__1;
-  
-  /* Builtin functions */
-  //  double sin();
-  
-  /* Local variables */
-  int idim, ibit, nrem, ntot, i2rev, i3rev, n;
-  double theta, tempi, tempr;
-  int nprev, i2;
-  double wtemp;
-  int i1, i3, k1, k2;
-  double wi, wr;
-  int ip1, ip2, ip3;
-  double wpi, wpr;
-  int ifp1, ifp2;
-  int ndim=2;
-  /* Parameter adjustments */
-  --nn;
-  --data;
-  
-  /* Function Body */
-  ntot = 1;
-  i__1 = ndim;
-  for (idim = 1; idim <= i__1; ++idim)
-    {
-      ntot *= nn[idim];
-    }
-  nprev = 1;
-  i__1 = ndim;
-  for (idim = 1; idim <= i__1; ++idim) {
-    n = nn[idim];
-    nrem = ntot / (n * nprev);
-    ip1 = nprev << 1;
-    ip2 = ip1 * n;
-    ip3 = ip2 * nrem;
-    i2rev = 1;
-    i__2 = ip2;
-    i__3 = ip1;
-    for (i2 = 1; i__3 < 0 ? i2 >= i__2 : i2 <= i__2; i2 += i__3) {
-      if (i2 < i2rev) {
-        i__4 = i2 + ip1 - 2;
-        for (i1 = i2; i1 <= i__4; i1 += 2) {
-          i__5 = ip3;
-          i__6 = ip2;
-          for (i3 = i1; i__6 < 0 ? i3 >= i__5 : i3 <= i__5; i3 += 
-               i__6) {
-            i3rev = i2rev + i3 - i2;
-            tempr = data[i3];
-            tempi = data[i3 + 1];
-                        data[i3] = data[i3rev];
-            data[i3 + 1] = data[i3rev + 1];
-            data[i3rev] = tempr;
-            data[i3rev + 1] = tempi;
-          }
-        }
-      }
-      ibit = ip2 / 2;
-    L1:
-      if (ibit >= ip1 && i2rev > ibit) {
-        i2rev -= ibit;
-        ibit /= 2;
-        goto L1;
-      }
-      i2rev += ibit;
-    }
-    ifp1 = ip1;
-  L2:
-    if (ifp1 < ip2) {
-      ifp2 = ifp1 << 1;
-      theta = isign * 6.28318530717959 / (ifp2 / ip1);
-      /* Computing 2nd power */
-      d__1 = sin(theta * .5);
-      wpr = d__1 * d__1 * -2.;
-      wpi = sin(theta);
-      wr = 1.;
-      wi = 0.;
-      i__3 = ifp1;
-      i__2 = ip1;
-      for (i3 = 1; i__2 < 0 ? i3 >= i__3 : i3 <= i__3; i3 += i__2) {
-        i__4 = i3 + ip1 - 2;
-        for (i1 = i3; i1 <= i__4; i1 += 2) {
-          i__6 = ip3;
-                    i__5 = ifp2;
-          for (i2 = i1; i__5 < 0 ? i2 >= i__6 : i2 <= i__6; i2 += 
-               i__5) {
-            k1 = i2;
-            k2 = k1 + ifp1;
-            tempr = wr * data[k2] - wi * data[k2 + 1];
-            tempi = wr * data[k2 + 1] + wi * data[k2];
-            data[k2] = data[k1] - tempr;
-            data[k2 + 1] = data[k1 + 1] - tempi;
-            data[k1] += tempr;
-            data[k1 + 1] += tempi;
-          }
-        }
-        wtemp = wr;
-        wr = wr * wpr - wi * wpi + wr;
-        wi = wi * wpr + wtemp * wpi + wi;
-      }
-      ifp1 = ifp2;
-      goto L2;
-    }
-    nprev = n * nprev;
-  }
-  return;
+  for (kloc=0; kloc<mm; kloc++){
+    for (nloc=0; nloc<nn; nloc++)    
+      { 
+	/* BUG, fixed Gio'05 
+	*(grid->phi1 + nloc*nn + kloc) = 1/ddy*rho11[kloc*mm + nloc];
+        *(grid->phi2 + nloc*nn + kloc) = 1/ddy*rho22[kloc*mm + nloc];
+		*/
+	
+        *(grid->phi1 + kloc*nn + nloc) = 1/ddy*rho11[kloc*nn + nloc];
+        *(grid->phi2 + kloc*nn + nloc) = 1/ddy*rho22[kloc*nn + nloc];
+      }}
+
+  free_dvector(rho11,0,mm*nn-1);
+  free_dvector(rho22,0,mm*nn-1);
+  //  free_dvector(work,0,mm*nn+2);
+  free_dvector(work,0,mm+nn+2);
+  free_dvector(rcos,0,mm*nn-1);
+
 }
 
-/* This routine calculates the potentials with the help of the fast fourier
-   transform */
 
-void fold_fft(double *rho1,double *rho2,double *dist,double *phi1,
-              double *phi2,double temp[],int n_x,int n_y)
-{
-  double help;
-  int i1,i2,i,j,j0;
-  int nn[2];
-
-  /* return no field */
-
-  /* fill array with charge */
-
-  for (i=0;i<n_x*n_y*8;i++) {
-    temp[i]=0.0;
-  }
-  for (i1=0;i1<n_x;i1++) {
-    for (i2=0;i2<n_y;i2++) {
-      j=2*(i1*2*n_y+i2);
-      j0=i1*n_y+i2;
-      temp[j]=rho1[j0];
-      temp[j+1]=rho2[j0];
-    }
-  }
-  
-  nn[0]=2*n_y;
-  nn[1]=2*n_x;
-  i1=2;
-  i2=1;
-  //fourtrans(temp,nn,i2);
-  fourtrans3(temp,nn,i2);
-  for (i=0;i<n_x*n_y*4;i++) {
-    j=2*i;
-    help=temp[j]*dist[j]-temp[j+1]*dist[j+1];
-    temp[j+1]=temp[j+1]*dist[j]+temp[j]*dist[j+1];
-    temp[j]=help;
-  }
-  i2=-1;
-  //fourtrans(temp,nn,i2);
-  fourtrans3(temp,nn,i2);
-  for (i1=0;i1<n_x;i1++) {
-    for (i2=0;i2<n_y;i2++) {
-      phi1[i1*n_y+i2]=temp[2*(i1*2*n_y+i2)]/((double)4*n_x*n_y);
-      phi2[i1*n_y+i2]=temp[2*(i1*2*n_y+i2)+1]/((double)4*n_x*n_y);
-    }
-  }
-}
-
-void init_sor (double *a,double *b,double *c,double *d,
-double *e,GRID grid)
+void init_sor (double *a,double *b,double *c,double *d,double *e,GRID grid)
 {
   double a0,b0,c0,d0,e0,factor;
   int i;
@@ -2247,14 +2119,6 @@ void sor2 (double *rho,double *phi,int n_x,int n_y,double *parameter)
 }
 
 double
-f_potential(double x,double y)
-{
-  double sum;
-  sum=x*y*(log(x*x+y*y)-3.0)+x*x*atan(y/x)+y*y*atan(x/y);
-  return sum;
-}
-
-double
 f_potential_2(double x0,double y0,double dx,double dy)
 {
   double x,y,sum;
@@ -2277,12 +2141,11 @@ f_potential_2(double x0,double y0,double dx,double dy)
   return sum;
 }
 
-/* This routine initialises the grid for the calculation of the potentials.
-   what_grid decides what distribution will be used, what_grid=2 should be
-   prefered. */
 
-void
-grid_init_phys (GRID *grid,float cut_x,float cut_y)
+
+/* This routine initialises the grid for the calculation of the potentials. */
+
+void grid_init_phys (GRID *grid,float cut_x,float cut_y)
 {
    int i1,i2,j,j0,j_tl,j_bl,j_tr,j_br;
    double factor,phi0;
@@ -2297,94 +2160,71 @@ grid_init_phys (GRID *grid,float cut_x,float cut_y)
    grid->min_y=-((float)n_y-2)/((float)n_y)*cut_y;
    grid->max_y=((float)n_y-2)/((float)n_y)*cut_y;
    grid->cut_x = cut_x;
-   grid->cut_y = cut_y;
-  
+   grid->cut_y = cut_y;  
+
    grid->offset_x=0.5*(float)n_x;
    grid->offset_y=0.5*(float)n_y;
-
    grid->delta_x=2.0*cut_x/((double)n_x);
    grid->delta_y=2.0*cut_y/((double)n_y);
+
    d_x=grid->delta_x;
    d_y=grid->delta_y;
+
    factor=1.0/(d_x*d_y);
-   switch (grid->integration_method) {
-   case 1:
-   case 3:
-     phi0=factor*
-       f_potential_2(0.0,0.0,0.5*grid->delta_x,0.5*grid->delta_y);
-     for (i1=0;i1<grid->n_cell_x;i1++) {
-       for (i2=0;i2<grid->n_cell_y;i2++) {
-         j=i1*grid->n_cell_y+i2;
-         x0=(double)i1;
-         y0=(double)i2;
-         grid->dist[j]=factor*
-           f_potential_2(x0*grid->delta_x,y0*grid->delta_y,
-                         0.5*grid->delta_x,0.5*grid->delta_y)
-           -phi0;
-       }
+
+
+   for (i1=0;i1<n_x*n_y*8;i1++) {
+     grid->dist[i1]=0.0;
+   }
+   for (i1=0;i1<=n_x;i1++) {
+     x=i1*d_x-0.5*d_x;
+     for (i2=0;i2<=n_y;i2++) {
+       y=(double)i2*d_y-0.5*d_y;	 
+       j=i1*(n_y+1)+i2;
+       grid->pot[j]=f_potential(x,y);
      }
-     break;
-   case 2:
-     for (i1=0;i1<n_x*n_y*8;i1++) {
-       grid->dist[i1]=0.0;
-     }
-     for (i1=0;i1<=n_x;i1++) {
-       x=i1*d_x-0.5*d_x;
-       for (i2=0;i2<=n_y;i2++) {
-	 y=(double)i2*d_y-0.5*d_y;	 
-	 j=i1*(n_y+1)+i2;
-	 grid->pot[j]=f_potential(x,y);
-       }
-     }
+   }
      phi0=factor*(grid->pot[n_y+2]-grid->pot[n_y+1]
 				-grid->pot[1]+grid->pot[0]);
-     for (i1=0;i1<n_x;i1++) {
-       for (i2=0;i2<n_y;i2++) {
-         j0=2*(i1*2*n_y+i2);
-         x0=(double)i1;
-         y0=(double)i2;
-	 j_tr=(i1+1)*(n_y+1)+(i2+1);
-	 j_br=(i1+1)*(n_y+1)+i2;
-	 j_tl=i1*(n_y+1)+(i2+1);
-	 j_bl=i1*(n_y+1)+i2;
-         grid->dist[j0]=factor*(grid->pot[j_tr]-grid->pot[j_br]
-				-grid->pot[j_tl]+grid->pot[j_bl])-phi0;
-         if (i2>=1) {
-           grid->dist[2*((i1+1)*2*n_y-i2)]=grid->dist[j0];
-           if (i1>=1) {
-             grid->dist[2*(2*n_y*(2*n_x-i1)+i2)]=grid->dist[j0];
-             grid->dist[2*(2*n_y*(2*n_x-i1)+2*n_y-i2)]=grid->dist[j0];
-           }
-         }
-         else {
-           if (i1>=1) {
-             grid->dist[2*(2*n_y*(2*n_x-i1)+i2)]=grid->dist[j0];
-           }
-         }
+   for (i1=0;i1<n_x;i1++) {
+     for (i2=0;i2<n_y;i2++) {
+       j0=2*(i1*2*n_y+i2);
+       x0=(double)i1;
+       y0=(double)i2;
+       j_tr=(i1+1)*(n_y+1)+(i2+1);
+       j_br=(i1+1)*(n_y+1)+i2;
+       j_tl=i1*(n_y+1)+(i2+1);
+       j_bl=i1*(n_y+1)+i2;
+       grid->dist[j0]=factor*(grid->pot[j_tr]-grid->pot[j_br]
+			      -grid->pot[j_tl]+grid->pot[j_bl])-phi0;
+       if (i2>=1) {
+	 grid->dist[2*((i1+1)*2*n_y-i2)]=grid->dist[j0];
+	 if (i1>=1) {
+	   grid->dist[2*(2*n_y*(2*n_x-i1)+i2)]=grid->dist[j0];
+	   grid->dist[2*(2*n_y*(2*n_x-i1)+2*n_y-i2)]=grid->dist[j0];
+	 }
+       }
+       else {
+	 if (i1>=1) {
+	   grid->dist[2*(2*n_y*(2*n_x-i1)+i2)]=grid->dist[j0];
+	 }
        }
      }
-     nn[0]=2*n_y;
-     nn[1]=2*n_x;
-     i1=2;
-     i2=1;
-     //fourtrans(grid->dist,nn,i2);
-     fourtrans2(grid->dist,nn,i2);
-     break;
    }
+   nn[0]=2*n_y;
+   nn[1]=2*n_x;
+   i1=2;
+   i2=1;
+   fourtrans2(grid->dist,nn,i2);   
 }
-
-GRID*
-grid_init_comp (int n_x,int n_y,int integration_method)
+GRID* grid_init_comp (int n_x,int n_y)
 {
   GRID *grid;
   
   grid=(GRID*)xmalloc(sizeof(GRID));
+
   grid->n_cell_x=n_x;
   grid->n_cell_y=n_y;
-
-  grid->integration_method=integration_method;
-  grid->distribution=2;
-  grid->interpolation=2;
 
   grid->rho1=(double*)xmalloc(sizeof(double)*n_x*n_y);
   grid->rho2=(double*)xmalloc(sizeof(double)*n_x*n_y);
@@ -2392,74 +2232,33 @@ grid_init_comp (int n_x,int n_y,int integration_method)
   grid->phi2=(double*)xmalloc(sizeof(double)*n_x*n_y);
   grid->pot=(double*)xmalloc(sizeof(double)*(n_x+1)*(n_y+1));
 
-  if (integration_method==2) {
-    grid->dist=(double*)xmalloc(sizeof(double)*n_x*n_y*8);
-    grid->temp=(double*)xmalloc(sizeof(double)*n_x*n_y*8);
-  }
-  else {
-    grid->dist=(double*)xmalloc(sizeof(double)*n_x*n_y);
-  }
+  grid->dist=(double*)xmalloc(sizeof(double)*n_x*n_y*8);
+  grid->temp=(double*)xmalloc(sizeof(double)*n_x*n_y*8);
   return grid;
 }
 
-
-/* This routine folds the charge distribution and the greensfunction of
-a grid to get the potentials. */
-
-void foldfields (double *rho,double *dist,double *phi,int n_x,int n_y)
-{
-  double s;
-  int i1,i2,i3,i4;
-
-  for (i1=0;i1<n_x;i1++) {
-    for (i2=0;i2<n_y;i2++) {
-      s=0.0;
-      for (i3=0;i3<n_x;i3++) {
-        for (i4=0;i4<n_y;i4++) {
-          s+=rho[i3*n_y+i4]*dist[abs(i1-i3)*n_y+abs(i2-i4)];
-        }
-      }
-      phi[i1*n_y+i2]=s;
-    }
-  }
-}
+/*****************************************************************
+ Move particles
+******************************************************************/
 
 
-void field_calculate(GRID *grid)
-{
-  switch (grid->integration_method) {
-  case 1:
-    foldfields(grid->rho1,grid->dist,grid->phi1,grid->n_cell_x,grid->n_cell_y);
-    foldfields(grid->rho2,grid->dist,grid->phi2,grid->n_cell_x,grid->n_cell_y);
-    break;
-  case 2:
-    fold_fft(grid->rho1,grid->rho2,grid->dist,grid->phi1,grid->phi2,
-             grid->temp,grid->n_cell_x,grid->n_cell_y);
-    break;
-  }
-}
-
-void particles_move(GRID *grid,double energy,double ics0[],
-                    double yps0[],double icsp[],double ypsp[],
-                    int nn,int i_which,double step,double scale)
-{ int i,i1,i2;
-  int elconta, rediffcont;
-
+void particles_move(GRID *grid,double ics0[],double yps0[],double icsp[],
+		    double ypsp[],int nn,double step,double scale)
+{ 
+  int i,i1,i2;  
   double ax,ay;
-  double phi1_x,phi2_x,phi3_x,phi1_y,phi2_y,phi3_y,h_x,h_y;
+  double phi1_x,phi2_x,phi3_x,phi1_y,phi2_y,phi3_y;
   int n_x,n_y;
+  double h_x,h_y;
   register int j;
   register double h,h_p;
   double *phi;
-  double delta_x_i,delta_y_i,offset_x,offset_y,delta_x,delta_y;
+  double delta_x,delta_y,delta_x_i,delta_y_i,offset_x,offset_y;
   double xx,yy,xxp,yyp;
   double min_x,max_x,min_y,max_y;
-  double k11,k12,k13,k14,k21,k22,k23,k24,k31,k32,k33,k34,k41,k42,k43,k44;
-  double velprx, velpry, bux, buy, bmod;
 
-  elconta=0;
-  rediffcont=0;
-
+  n_x=grid->n_cell_x;
+  n_y=grid->n_cell_y;
   min_x=grid->min_x;
   max_x=grid->max_x;
   min_y=grid->min_y;
@@ -2468,188 +2267,77 @@ void particles_move(GRID *grid,double energy,double ics0[],
   delta_y=grid->delta_y;
   delta_x_i=1.0/grid->delta_x;
   delta_y_i=1.0/grid->delta_y;
-
   offset_x=grid->offset_x;
   offset_y=grid->offset_y;
-  n_x=grid->n_cell_x;
-  n_y=grid->n_cell_y;
 
-    if (i_which==1){    //to move the electrons
-      phi=grid->phi2;
+  phi=grid->phi2;
+
+  for (i=0;i<nn;i++){
+    xx=ics0[i];
+    yy=yps0[i];
+    xxp=icsp[i];
+    yyp=ypsp[i];
+    if ((xx>min_x)&&(xx<max_x)&&(yy>min_y)&&(yy<max_y)){
+      h_x=xx*delta_x_i+offset_x;
+      h_y=yy*delta_y_i+offset_y;
+      
+      i1=(int)h_x;
+      h=h_y-0.5;
+      i2=(int)h;
+      h -= i2;
+      j=i1*n_y+i2;
+      h_p=1.0-h;
+      phi1_y=h*phi[j+n_y+1]+h_p*phi[j+n_y];
+      phi2_y=h*phi[j+1]+h_p*phi[j];
+      phi3_y=h*phi[j-n_y+1]+h_p*phi[j-n_y];
+
+      i2=(int)h_y;
+      h=h_x-0.5;
+      i1=(int)h;
+      h -= i1;
+      h_p=1.0-h;
+      j=i1*n_y+i2;
+      phi1_x=h*phi[j+n_y+1]+h_p*phi[j+1];
+      phi2_x=h*phi[j+n_y]+h_p*phi[j];
+      phi3_x=h*phi[j+n_y-1]+h_p*phi[j-1];
+
+      h_x -= (int)h_x;
+      h_y -= (int)h_y;
+      ax = (h_x*(phi1_y-phi2_y)+(1.0-h_x)*(phi2_y-phi3_y))/(delta_x);
+      ay = (h_y*(phi1_x-phi2_x)+(1.0-h_y)*(phi2_x-phi3_x))/(delta_y);
+      
+      icsp[i] -= ax*step*scale;
+      ypsp[i] -= ay*step*scale;
     }
-    else{               //to move the ions
-      phi=grid->phi1;
+    else {
+      fprintf(stderr,"WARNING: particle is not on the grid\n");
+      fprintf(stderr,"WARNING: it's an electron \n"); 
     }
-
-  switch (grid->interpolation){
-  case 1:
-    for (i=0;i<nn;i++){
-      i1=(int)floor(ics0[i]*delta_x_i+offset_x);
-      i2=(int)floor(yps0[i]*delta_y_i+offset_y);
-      if ((i1<n_x-1)&&(i1>0)&&(i2<n_y-1)&&(i2>0)){
-        j=i1*n_y+i2;
-        ax = (phi[j+n_y]
-              -phi[j-n_y])*step
-          /(2.0*delta_x*energy);
-        ay = (phi[j+1]
-              -phi[j-1])*step
-          /(2.0*delta_y*energy);
-        icsp[i] -= ax*scale;
-        ypsp[i] -= ay*scale;
-      }
-      else {
-        fprintf(stderr,"WARNING: particle is not on the grid\n");
-      }
-      ics0[i] += icsp[i]*step;
-      yps0[i] += ypsp[i]*step;
-    }
-    break;
-
-    case 2:
-      for (i=0;i<nn;i++){
-        if(i_which==2 && i_dip!=2) {
-          ics0[i] += icsp[i]*step;
-          yps0[i] += ypsp[i]*step;
-	}
-	
-        xx=ics0[i];
-        yy=yps0[i];
-        xxp=icsp[i];
-        yyp=ypsp[i];
-        if ((xx>min_x)&&(xx<max_x)&&(yy>min_y)&&(yy<max_y)){
-          h_x=xx*delta_x_i+offset_x;
-          h_y=yy*delta_y_i+offset_y;
-
-          i1=(int)h_x;
-          h=h_y-0.5;
-          i2=(int)h;
-          h -= i2;
-          j=i1*n_y+i2;
-          h_p=1.0-h;
-          phi1_y=h*phi[j+n_y+1]+h_p*phi[j+n_y];
-          phi2_y=h*phi[j+1]+h_p*phi[j];
-          phi3_y=h*phi[j-n_y+1]+h_p*phi[j-n_y];
-
-          i2=(int)h_y;
-          h=h_x-0.5;
-          i1=(int)h;
-          h -= i1;
-          h_p=1.0-h;
-          j=i1*n_y+i2;
-          phi1_x=h*phi[j+n_y+1]+h_p*phi[j+1];
-          phi2_x=h*phi[j+n_y]+h_p*phi[j];
-          phi3_x=h*phi[j+n_y-1]+h_p*phi[j-1];
-
-          h_x -= (int)h_x;
-          h_y -= (int)h_y;
-          ax = (h_x*(phi1_y-phi2_y)+(1.0-h_x)*(phi2_y-phi3_y))/(delta_x*energy);
-          ay = (h_y*(phi1_x-phi2_x)+(1.0-h_y)*(phi2_x-phi3_x))/(delta_y*energy);
-
-          switch(i_dip){
-
-            case 0:
-                 icsp[i] -= ax*step*scale;
-                 ypsp[i] -= ay*step*scale;
-                 break;	 
-
-	    case 1:
-	      if(i_which==2)
-                 icsp[i] -= 0.0;
-	      else
-		icsp[i] -= ax*step*scale;
-
-                 ypsp[i] -= ay*step*scale;
-                 break;
-
-	    case 2:
-                 if(i_which==2)
-                  { k11 = xxp*step;
-                    k21 = (-ax*scale + E/ELMS*bsol*yyp)*step;
-                    k31 = yyp*step;
-                    k41 = (-ay*scale - E/ELMS*bsol*xxp)*step;
-
-                    k12 = (xxp+k21/2)*step;
-                    k22 = (-ax*scale + E/ELMS*bsol*(yyp+k41/2))*step;
-                    k32 = (yyp+k41/2)*step;
-                    k42 = (-ay*scale - E/ELMS*bsol*(xxp+k21/2))*step;
-
-                    k13 = (xxp+k22/2)*step;
-                    k23 = (-ax*scale + E/ELMS*bsol*(yyp+k42/2))*step;
-                    k33 = (yyp+k42/2)*step;
-                    k43 = (-ay*scale - E/ELMS*bsol*(xxp+k22/2))*step;
-
-                    k14 = (xxp+k23)*step;
-                    k24 = (-ax*scale + E/ELMS*bsol*(yyp+k43))*step;
-                    k34 = (yyp+k43)*step;
-                    k44 = (-ay*scale - E/ELMS*bsol*(xxp+k23))*step;
-
-                    ics0[i] += k11/6 + k12/3 + k13/3 + k14/6;
-                    icsp[i] += k21/6 + k22/3 + k23/3 + k24/6;
-                    yps0[i] += k31/6 + k32/3 + k33/3 + k34/6;
-                    ypsp[i] += k41/6 + k42/3 + k43/3 + k44/6;
-
-		  }
-
-                 if(i_which==1)
-                  { icsp[i] -= ax*scale*step;
-   	            ypsp[i] -= ay*scale*step;
-		  }
-                 break;
-
-	    case 3:
-
-	         if(i_which==2)
-                  { velprx = icsp[i] - ax*step*scale;
-                    velpry = ypsp[i] - ay*step*scale;
-                    bux = bgrad*yps0[i];
-                    buy = bdip - bgrad*ics0[i];
-                    bmod = sqrt(bux*bux+buy*buy);
-                    bux *= fabs(velprx)/velprx/bmod;
-                    buy *= fabs(velpry)/velpry/bmod;
-                    icsp[i] = (bux*velprx + buy*velpry)*bux;
-                    ypsp[i] = (bux*velprx + buy*velpry)*buy;
-		  }
-                 if(i_which==1)
-                  { icsp[i] -= ax*scale*step;
-   	            ypsp[i] -= ay*scale*step;
-		  }
-                 break;
-	  }
-	}
-
-        else{
-	  // COMMENTED OUT BY ADRIAN OEFTIGER:
-          //fprintf(stderr,"WARNING: particle is not on the grid\n");
-	  //fprintf(stderr,"WARNING: it's an electron \n"); 
-        }
-      }
-      break;
   }
 }
 
-void particles_move_ion(GRID *grid,double energy,double ics0[],
-                    double yps0[],double icsp[],double ypsp[],long mm[],
-                    int nn,int i_which,double step)
-{ static float scale;
+void particles_move_ion(GRID *grid,double ics0[],double yps0[],double icsp[],
+			double ypsp[],long mm[],int nn,double step,double scale_ar[])
+{ 
+  float scale;
   int i,i1,i2;
-  
-  int elconta, rediffcont;
-
   double ax,ay;
-  double phi1_x,phi2_x,phi3_x,phi1_y,phi2_y,phi3_y,h_x,h_y;
+  double energy;
+  double phi1_x,phi2_x,phi3_x,phi1_y,phi2_y,phi3_y;
   int n_x,n_y;
+  double h_x,h_y;
   register int j;
   register double h,h_p;
+
   double *phi;
   double delta_x_i,delta_y_i,offset_x,offset_y,delta_x,delta_y;
   double xx,yy,xxp,yyp;
   double min_x,max_x,min_y,max_y;
-  double k11,k12,k13,k14,k21,k22,k23,k24,k31,k32,k33,k34,k41,k42,k43,k44;
-  double velprx, velpry, bux, buy, bmod;
 
-  elconta=0;
-  rediffcont=0;
 
+  energy = 1.0;
+  n_x=grid->n_cell_x;
+  n_y=grid->n_cell_y;
   min_x=grid->min_x;
   max_x=grid->max_x;
   min_y=grid->min_y;
@@ -2658,232 +2346,55 @@ void particles_move_ion(GRID *grid,double energy,double ics0[],
   delta_y=grid->delta_y;
   delta_x_i=1.0/grid->delta_x;
   delta_y_i=1.0/grid->delta_y;
-
   offset_x=grid->offset_x;
   offset_y=grid->offset_y;
-  n_x=grid->n_cell_x;
-  n_y=grid->n_cell_y;
 
-    if (i_which==1){    //to move the electrons
-      phi=grid->phi2;
+  phi=grid->phi1;
+
+  for (i=0;i<nn;i++){
+    scale=scale_ar[mm[i]];
+    xx=ics0[i];
+    yy=yps0[i];
+    xxp=icsp[i];
+    yyp=ypsp[i];
+    if ((xx>min_x)&&(xx<max_x)&&(yy>min_y)&&(yy<max_y)){
+      h_x=xx*delta_x_i+offset_x;
+      h_y=yy*delta_y_i+offset_y;
+      i1=(int)h_x;
+      h=h_y-0.5;
+      i2=(int)h;
+      h -= i2;
+      j=i1*n_y+i2;
+      h_p=1.0-h;
+      phi1_y=h*phi[j+n_y+1]+h_p*phi[j+n_y];
+      phi2_y=h*phi[j+1]+h_p*phi[j];
+      phi3_y=h*phi[j-n_y+1]+h_p*phi[j-n_y];
+
+      i2=(int)h_y;
+      h=h_x-0.5;
+      i1=(int)h;
+      h -= i1;
+      h_p=1.0-h;
+      j=i1*n_y+i2;
+      phi1_x=h*phi[j+n_y+1]+h_p*phi[j+1];
+      phi2_x=h*phi[j+n_y]+h_p*phi[j];
+      phi3_x=h*phi[j+n_y-1]+h_p*phi[j-1];
+
+      h_x -= (int)h_x;
+      h_y -= (int)h_y;
+      ax = (h_x*(phi1_y-phi2_y)+(1.0-h_x)*(phi2_y-phi3_y))/(delta_x*energy);
+      ay = (h_y*(phi1_x-phi2_x)+(1.0-h_y)*(phi2_x-phi3_x))/(delta_y*energy);
+
+      icsp[i] -= ax*step*scale;
+      ypsp[i] -= ay*step*scale;
     }
-    else{               //to move the ions
-      phi=grid->phi1;
+    else {
+      //fprintf(stderr,"WARNING: particle is not on the grid\n");
+      //fprintf(stderr,"WARNING: it's an ion \n"); 
+      ionoutgrid += 1;
     }
-
-  switch (grid->interpolation){
-  case 1:
-    for (i=0;i<nn;i++){
-      i1=(int)floor(ics0[i]*delta_x_i+offset_x);
-      i2=(int)floor(yps0[i]*delta_y_i+offset_y);
-      if ((i1<n_x-1)&&(i1>0)&&(i2<n_y-1)&&(i2>0)){
-        j=i1*n_y+i2;
-        ax = (phi[j+n_y]
-              -phi[j-n_y])*step
-          /(2.0*delta_x*energy);
-        ay = (phi[j+1]
-              -phi[j-1])*step
-          /(2.0*delta_y*energy);
-        icsp[i] -= ax*scale;
-        ypsp[i] -= ay*scale;
-      }
-      else {
-        fprintf(stderr,"WARNING: particle is not on the grid\n");
-      }
-      ics0[i] += icsp[i]*step;
-      yps0[i] += ypsp[i]*step;
-    }
-    break;
-
-    case 2:
-      for (i=0;i<nn;i++){
-	/*
-        if(i_which==2 && i_dip!=2) {
-          ics0[i] += icsp[i]*step;
-          yps0[i] += ypsp[i]*step;
-	}
-	*/
-
-	scale=fscale1[mm[i]];
-        xx=ics0[i];
-        yy=yps0[i];
-        xxp=icsp[i];
-        yyp=ypsp[i];
-        if ((xx>min_x)&&(xx<max_x)&&(yy>min_y)&&(yy<max_y)){
-          h_x=xx*delta_x_i+offset_x;
-          h_y=yy*delta_y_i+offset_y;
-          i1=(int)h_x;
-          h=h_y-0.5;
-          i2=(int)h;
-          h -= i2;
-          j=i1*n_y+i2;
-          h_p=1.0-h;
-          phi1_y=h*phi[j+n_y+1]+h_p*phi[j+n_y];
-          phi2_y=h*phi[j+1]+h_p*phi[j];
-          phi3_y=h*phi[j-n_y+1]+h_p*phi[j-n_y];
-          i2=(int)h_y;
-          h=h_x-0.5;
-          i1=(int)h;
-          h -= i1;
-          h_p=1.0-h;
-          j=i1*n_y+i2;
-          phi1_x=h*phi[j+n_y+1]+h_p*phi[j+1];
-          phi2_x=h*phi[j+n_y]+h_p*phi[j];
-          phi3_x=h*phi[j+n_y-1]+h_p*phi[j-1];
-          h_x -= (int)h_x;
-          h_y -= (int)h_y;
-          ax = (h_x*(phi1_y-phi2_y)+(1.0-h_x)*(phi2_y-phi3_y))/(delta_x*energy);
-          ay = (h_y*(phi1_x-phi2_x)+(1.0-h_y)*(phi2_x-phi3_x))/(delta_y*energy);
-
-          switch(i_dip){
-
-            case 0:
-                 icsp[i] -= ax*step*scale;
-                 ypsp[i] -= ay*step*scale;
-                 break;	 
-
-	    case 1:
-	      if(i_which==2)
-                 icsp[i] -= 0.0;
-	      else
-		icsp[i] -= ax*step*scale;
-
-                 ypsp[i] -= ay*step*scale;
-                 break;
-
-	    case 2:
-                 if(i_which==2)
-                  { k11 = xxp*step;
-                    k21 = (-ax*scale + E/ELMS*bsol*yyp)*step;
-                    k31 = yyp*step;
-                    k41 = (-ay*scale - E/ELMS*bsol*xxp)*step;
-
-                    k12 = (xxp+k21/2)*step;
-                    k22 = (-ax*scale + E/ELMS*bsol*(yyp+k41/2))*step;
-                    k32 = (yyp+k41/2)*step;
-                    k42 = (-ay*scale - E/ELMS*bsol*(xxp+k21/2))*step;
-
-                    k13 = (xxp+k22/2)*step;
-                    k23 = (-ax*scale + E/ELMS*bsol*(yyp+k42/2))*step;
-                    k33 = (yyp+k42/2)*step;
-                    k43 = (-ay*scale - E/ELMS*bsol*(xxp+k22/2))*step;
-
-                    k14 = (xxp+k23)*step;
-                    k24 = (-ax*scale + E/ELMS*bsol*(yyp+k43))*step;
-                    k34 = (yyp+k43)*step;
-                    k44 = (-ay*scale - E/ELMS*bsol*(xxp+k23))*step;
-
-                    ics0[i] += k11/6 + k12/3 + k13/3 + k14/6;
-                    icsp[i] += k21/6 + k22/3 + k23/3 + k24/6;
-                    yps0[i] += k31/6 + k32/3 + k33/3 + k34/6;
-                    ypsp[i] += k41/6 + k42/3 + k43/3 + k44/6;
-
-		  }
-
-                 if(i_which==1)
-                  { icsp[i] -= ax*scale*step;
-   	            ypsp[i] -= ay*scale*step;
-		  }
-                 break;
-
-	    case 3:
-
-	         if(i_which==2)
-                  { velprx = icsp[i] - ax*step*scale;
-                    velpry = ypsp[i] - ay*step*scale;
-                    bux = bgrad*yps0[i];
-                    buy = bdip - bgrad*ics0[i];
-                    bmod = sqrt(bux*bux+buy*buy);
-                    bux *= fabs(velprx)/velprx/bmod;
-                    buy *= fabs(velpry)/velpry/bmod;
-                    icsp[i] = (bux*velprx + buy*velpry)*bux;
-                    ypsp[i] = (bux*velprx + buy*velpry)*buy;
-		  }
-                 if(i_which==1)
-                  { icsp[i] -= ax*scale*step;
-   	            ypsp[i] -= ay*scale*step;
-		  }
-                 break;
-	  }
-	}
-
-        else{
-          //fprintf(stderr,"WARNING: particle is not on the grid\n");
-	  //fprintf(stderr,"WARNING: it's an ion \n"); 
-	  ionoutgrid += 1;
-        }
-      }
-      break;
   }
 }
-
-void field_poissonbc(GRID *grid)
-
-{
-  double    *rho11,
-            *rho22,
-            *work, 
-            *rcos, 
-            ddx, 
-            ddy;
-
-  int       nn, mm, kloc, nloc;
-  
-  ddx     = 1.0;
-  ddy     = grid->delta_y/grid->delta_x;
-  mm     = grid->n_cell_x  ; 
-  nn     = grid->n_cell_y ; 
-
-  rho11=dvector(0,mm*nn-1);
-  rho22=dvector(0,mm*nn-1);
-  work=dvector(0,mm+nn+2);
-  rcos=dvector(0,mm*nn-1);
-
-  for (kloc=0; kloc<mm; kloc++)
-     for (nloc=0; nloc<nn; nloc++)
-       {
-	 /* BUG, fixed Gio'05
-	 if (kloc!=0 && nloc!=0) 
-	   rcos[kloc*mm + nloc]=1.0/(2.0*((cos((double)(kloc)*PI/mm)-1.0)/(ddx*ddx)+(cos((double)(nloc)*PI/nn)-1.0)/(ddy*ddy)))*4.0/(mm*nn);
-	 else
-	   rcos[0]=0.;
-
-        rho11[kloc*mm + nloc] = (4*PI)*(*(grid->rho1 + nloc*nn + kloc));
-        rho22[kloc*mm + nloc] = (4*PI)*(*(grid->rho2 + nloc*nn + kloc));
-	*/
-	
-        rcos[kloc*nn + nloc]=1.0/(2.0*((cos((double)(kloc)*PI/mm)-1.0)/(ddx*ddx)+(cos((double)(nloc)*PI/nn)-1.0)/(ddy*ddy)))*4.0/(mm*nn);
-
-        rho11[kloc*nn + nloc] = (4*PI)*(*(grid->rho1 + kloc*nn + nloc));
-        rho22[kloc*nn + nloc] = (4*PI)*(*(grid->rho2 + kloc*nn + nloc));
-	
-      }
-
-  potfft_(rho22,rcos,work,&mm,&nn); 
-  potfft_(rho11,rcos,work,&mm,&nn);
-
-
-
-  for (kloc=0; kloc<mm; kloc++){
-    for (nloc=0; nloc<nn; nloc++)    
-      { 
-	/* BUG, fixed Gio'05 
-	*(grid->phi1 + nloc*nn + kloc) = 1/ddy*rho11[kloc*mm + nloc];
-        *(grid->phi2 + nloc*nn + kloc) = 1/ddy*rho22[kloc*mm + nloc];
-		*/
-	
-        *(grid->phi1 + kloc*nn + nloc) = 1/ddy*rho11[kloc*nn + nloc];
-        *(grid->phi2 + kloc*nn + nloc) = 1/ddy*rho22[kloc*nn + nloc];
-      }}
-
-  free_dvector(rho11,0,mm*nn-1);
-  free_dvector(rho22,0,mm*nn-1);
-  //  free_dvector(work,0,mm*nn+2);
-  free_dvector(work,0,mm+nn+2);
-  free_dvector(rcos,0,mm*nn-1);
-
-}
-
 /******************************************************************************
  ****                            Main Program                              ****
  ******************************************************************************/
@@ -2963,7 +2474,7 @@ int main (int argc, char *argv[])
   printf ("\t\t Complete\n") ;
 
   if(iion==1)  
-    grid=grid_init_comp(256,256,2);
+    grid=grid_init_comp(256,256);
   
   fprintf (ion_inphase, "electrons per bunch = %d\t  ions per bunch = %d\t number of bunches = %d\n",NELB,NION,NBUN);
 
@@ -3113,7 +2624,7 @@ int main (int argc, char *argv[])
 	    particles_distribute(grid,xion,yion,ntemp,2,qion);
 	    break;
 	  case 1:
-	    particles_distribute2(grid,xion,yion,ntemp,2,qionfi);
+	    particles_distribute2(grid,xion,yion,ntemp,qionfi);
 	    break;
 	  }
 	  //printf ("\n bunch number = %d, qe0 = %lf, qion = %lf \n",jmain,qe0,qion);
@@ -3125,8 +2636,8 @@ int main (int argc, char *argv[])
 	  
 	  /* move the ions - kick the beam electrons */
 	  
-	  particles_move(grid,epr,vprelx,vprely,vprelxp,vprelyp,NELB,1,tstep,fscale2);
-	  particles_move_ion(grid,eel,xion,yion,xpion,ypion,mion,ntemp,2,tstep);
+	  particles_move(grid,vprelx,vprely,vprelxp,vprelyp,NELB,tstep,fscale2);
+	  particles_move_ion(grid,xion,yion,xpion,ypion,mion,ntemp,tstep,fscale1);
 	  fprintf(ele_phase, "%ld  %ld  %ld  %lg\n ", it, jmain, ionoutgrid, (double)ionoutgrid/(double)ntemp*100.);
 	  
 	  //have to initialize mion[], a vector containing a flag for the ion type -i.e. mion[k] is the integer

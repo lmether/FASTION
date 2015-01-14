@@ -1,0 +1,3 @@
+The 'development' branch is a long-running branch parallel to 'master',
+which is meant for testing features, and is not necessarily stable.
+It can be used for pulling in and testing short-lived topic branches.

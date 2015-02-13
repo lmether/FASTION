@@ -105,6 +105,8 @@ long  mmain                 ,   /* down to mmain -> indices used in main for loo
       hh                    ,   /* harmonic number                                  */
       ifi                   ,   /* switch for field ionization                      */
       isyn                  ,   /* switch for longitudinal motion                   */
+      itrack_mt             ,   /* switch for tracking ions over multiple turns     */
+      igen_mt               ,   /* switch for generating ions over multiple turns   */
       nspe                  ,   /* number of ion species                            */
       nstep                 ,   /* number of interactions                           */
       nturn                 ,   /* number of turns through lattice                  */
@@ -619,6 +621,10 @@ read_data ()
   fscanf (cfg_file_ptr,"%s",dummy_string);
   fscanf (cfg_file_ptr,"%lf\n",&eq_sigp);
   printf ("eq_sigp=%lf\n",eq_sigp);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%ld\n",&itrack_mt);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%ld\n",&igen_mt);
 
   fclose(cfg_file_ptr);
   printf ("\n\n\t\tConfiguration-file loaded successfully.\n") ;
@@ -2781,13 +2787,13 @@ int main (int argc, char *argv[])
 	if (iion==1) {
 	      
 	  ionoutgrid = 0;
-           
-          if(nt==1){
-	   generate();    
-	   ntemp = (jmain+1)*NION;
-          }else{
-           ntemp = NBUN*NION;
-          }
+
+	  if(nt==1 || igen_mt==1){ 
+	      generate();    
+	      ntemp = (jmain+1)*NION;
+	  }else{
+	    ntemp = NBUN*NION;
+	  }
 	  
 	  ion_properties();
 	  //printf ("\n it = %d, n_diag2 = %d, ntemp = %d \n",it,n_diag2,ntemp);	
@@ -2821,20 +2827,19 @@ int main (int argc, char *argv[])
 	    gridexty = 1.1*fmax(fabs(ysion)+5.*sysion,10.*yel_max[jmain]);
 	  }
  
-          //gridextx = 1.1*10.*xel_max[jmain];
-          //gridexty = 1.1*10.*yel_max[jmain];
+          //gridextx = 1.1*fmax(xion_max,10.*xel_max[jmain]);
+          //gridexty = 1.1*fmax(yion_max,10.*yel_max[jmain]);
           
 	  
 	  fprintf (grid_pr, "%ld  %d  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e\n",
 		   it,jmain,gridextx*1.e9,gridexty*1.e9,1.1e9*xion_max,1.1e9*yion_max,1.1e9*(fabs(xsion)+5.*sxsion),
 		   1.1e9*(fabs(ysion)+5.*sysion),1.1e9*10.*xel_max[jmain],1.1e9*10.*yel_max[jmain]);
 	      
-	  //if(jmain==0){
-	  //   grid_init_phys(grid,0.025,0.01);
-	  //}
+          //if(jmain==0){
+          //  grid_init_phys(grid,0.025,0.01);
+          //}
 	  grid_init_phys(grid,gridextx,gridexty);
 	  
-
 	  for(kmain=0; kmain<NELB; kmain++) { 
 	    vprelx[kmain] = xel[jmain*NELB+kmain];
 	    vprely[kmain] = yel[jmain*NELB+kmain];
@@ -2894,7 +2899,7 @@ int main (int argc, char *argv[])
 	  
 	  
 	  for (kmain=0; kmain<ntemp; kmain++) {
-            if(jmain<NBUN-1 | gap==0.0){
+            if(jmain<NBUN-1 | gap==0.0 | itrack_mt==0){
 	     xion[kmain]+=xpion[kmain]*bsp*1e-9;
 	     yion[kmain]+=ypion[kmain]*bsp*1e-9;
             }else{

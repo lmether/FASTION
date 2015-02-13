@@ -51,7 +51,7 @@ train of electron bunches which propagates through a lattice.
                                        bunch passage                      */
 #define  NELB    10000              /* Number of macroelectrons
                                        in one bunch                       */
-#define  NBUN    312                /* Number of bunches in the train     */
+#define  NBUN    992                /* Number of bunches in the train     */
 #define  NDC     128                /* Number of cells to produce a
                                        distribution function              */
                                       
@@ -74,6 +74,8 @@ typedef struct /* GRID */
 /* Definition of the external variables   */
 
 FILE  *ions_pr               ,
+      *ions_b1               ,
+      *ions_bn               ,
       *centr_pr              ,
       *trainhdtl_pr          ,
       *ele_phase             ,
@@ -100,7 +102,9 @@ long  mmain                 ,   /* down to mmain -> indices used in main for loo
                                    number of interactions: 2*number of fodos        */
       nt                    ,   /* index used for cycle over the number of turns    */
       iion                  ,   /* switch for fast ion instability                  */
+      hh                    ,   /* harmonic number                                  */
       ifi                   ,   /* switch for field ionization                      */
+      isyn                  ,   /* switch for longitudinal motion                   */
       nspe                  ,   /* number of ion species                            */
       nstep                 ,   /* number of interactions                           */
       nturn                 ,   /* number of turns through lattice                  */
@@ -108,6 +112,7 @@ long  mmain                 ,   /* down to mmain -> indices used in main for loo
       i_cool                ,   /* flag for the distribution of the emittance cooling
                                    due to acceleration, 0: x and xp, 1: only xp                  */
       iwake_flag            ,   /* flag for the wake field: input parameter                      */
+      isynchrad             ,   /* switch for synchrotron radiation                 */
       i_pipe                ,   /* flag for gemoetry in effective wake calculation
                                    0 -> circular (a=b)  1 -> flat  (a>>b)                        */
       ionoutgrid            ,   /* counter of ions out of the grid                               */
@@ -127,6 +132,8 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        yel[NBUN*NELB]       ,   /* vertical coordinate for electrons                */
        xpel[NBUN*NELB]      ,   /* dx/ds  for electrons                             */
        ypel[NBUN*NELB]      ,   /* dy/ds  for electrons                             */
+       szel[NBUN*NELB]      ,   /* s-coordinate  for electrons                      */
+       dpel[NBUN*NELB]      ,   /* momentum deviation  for electrons                */
        xion[NBUN*NION]      ,   /* horizontal coordinate for ions                   */
        yion[NBUN*NION]      ,   /* vertical coordinate for ions                     */
        xpion[NBUN*NION]     ,   /* dxe/dt  for ions                                 */
@@ -134,12 +141,18 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        qionfi[NBUN]         ,   /* number of ions in one macroion with field ionization     */
        xs[NBUN]             ,
        ys[NBUN]             ,
+       zs[NBUN]             ,
+       dps[NBUN]            ,
        sxs[NBUN]            ,
        sys[NBUN]            ,
+       szs[NBUN]            ,
+       sdps[NBUN]           ,
        sxp2s[NBUN]          ,
        syp2s[NBUN]          ,
+       sdp2s[NBUN]          ,
        xppr[NBUN]           ,
        yppr[NBUN]           ,
+       zppr[NBUN]           ,
        xel_max[NBUN]        ,   /* [m] maximum electron x position                  */
        yel_max[NBUN]        ,   /* [m] minimum electron y position                  */
        xsion                ,
@@ -189,7 +202,17 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        nionpb2              ,   /* number of ions per bunch                         */
        ptot                 ,   /* total pressure in the vacuum chamber [nTorr]     */
        bsp                  ,   /* [ns] bunch spacing                               */
-       sz0                  ,   /* [ns] rms bunch length                            */
+       gap                  ,   /* gap at the end of the bunch train                */
+       sz0                  ,   /* [m] initial rms bunch length                     */
+       dp0                  ,   /* initial momentum spread                          */
+       nus                  ,   /* initial synchrotron tune                         */
+       betar                ,   /* relativitic beta                                 */
+       alpha                ,   /* momentum compaction factor                       */
+       eta                  ,   /* slip factor: alpha - 1/gammar^2                  */
+       omegas               ,   /* synchrotron frequency                            */
+       circ                 ,   /* ring circumference                               */
+       qpx                  ,    /* horizontal chromaticity                          */
+       qpy                  ,    /* vertical chromaticity                            */
        emxN0                ,   /* [nm] rms hor. normalized emittance               */
        emyN0                ,   /* [nm] rms vert. normalized emittance              */
        gammanext            ,   /* stores a local value of gamma along the line     */
@@ -231,28 +254,43 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        sxa                  ,   /* space coordinates of the bunch particles         */
        cya                  ,   /* cxya -> sxya: transport parameters for the phase */
        sya                  ,   /* space coordinates of the bunch particles         */
+       csa                  ,   /* cxya -> sxya: transport parameters for the phase */
+       ssa                  ,   /* space coordinates of the bunch particles         */
 
        xave                 ,   /* average horizontal offset of the bunch           */
        yave                 ,   /* average vertical offset of the bunch             */
        zave                 ,   /* average longitudinal offset of the bunch         */
+       dpave                ,   /* average momentum spread of the bunch             */
        xpave                ,   /* average bunch offset in dx/ds                    */
        ypave                ,   /* average bunch offset in dy/ds                    */
        sxsize               ,   /* square of horizontal rms bunch size              */
        sysize               ,   /* square of vertical rms bunch size                */
+       szsize               , 
+       dpsize               ,
        sxpsize              ,
        sypsize              ,
        xemit                ,   /* horizontal emittance                             */
        yemit                ,   /* vertical emittance                               */
+       zemit                ,   /* longitudinal emittance                           */
        xoff                 ,   /* local variables for bunch offsets and sizes      */
        yoff                 ,
+       zoff                 ,
+       dpoff                ,
        sx                   ,
        sy                   , 
+       ssz                  ,
+       sdp                  ,
        sxp2                 ,
        syp2                 ,
+       sdp2                 ,
        sxppr                ,
        syppr                ,
+       szppr                ,
+       szz0                 ,
+       dpp0                 ,
        localemitx           ,
-       localemity           ,   /* --------------------------------------------     */
+       localemity           ,
+       localemitz           ,   /* --------------------------------------------     */
        sx0                  ,   /* all variables to be used for transport when the  */
        sy0                  ,   /* beta's are loaded from an external twiss file    */
        sx1                  , 
@@ -306,7 +344,30 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        *muarrayy            ,
        *muarrayx            ,   
        *alfarrayx           ,   
-       *alfarrayy           ;
+       *alfarrayy           ,
+       damperratex	    ,    /* damping rate in horizontal (fraction of centroid
+       				    position taken out each turn)	    	    */
+       damperratey	    ,    /* damping rate in vertical (fraction of centroid
+       				    position taken out each turn)	    	    */
+       synchdampx           ,    /* horizontal synchrotron damping rate in turns    */
+       synchdampy           ,    /* vertical synchrotron damping rate in turns      */
+       synchdampz           ,    /* longitudinal synchrotron damping rate in turns  */
+       eq_emitx             ,    /* horizontal equilibrium emittance                */
+       eq_emity             ,    /* vertical equilibrium emittance                  */
+       eq_sigs              ,    /* equilibrium bunch length                        */
+       eq_sigp              ,    /* equilibrium momentum spread                     */
+       eq_sigx              ,    /* horizontal equilibrium rms beam size            */
+       eq_sigxp             ,    /* horizontal equilibrium rms divergence           */
+       eq_sigy              ,    /* vertical equilibrium rms beam size              */
+       eq_sigyp             ,    /* vertical equilibrium rms divergence             */
+       lx                   ,    /*intermediate variables for randiation damping
+                                   calculations*/
+       ly                   ,      
+       lz                   ,
+       slx                  ,      
+       sly                  ,
+       slz                  ,      
+       rannum               ;
 
            
 /* For sake of clarity we specify here that the broad band model that we've assumed 
@@ -470,6 +531,22 @@ read_data ()
   fscanf (cfg_file_ptr,"%s",dummy_string);
   fscanf (cfg_file_ptr,"%lf",&sz0);
   fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf",&dp0);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf",&nus);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf",&alpha);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf",&circ);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%ld",&hh);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%ld",&isyn);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf",&qpx);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf",&qpy);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
   fscanf (cfg_file_ptr,"%ld",&i_kick);
   printf ("i_kick=%ld\n",i_kick);
   fscanf (cfg_file_ptr,"%s",dummy_string);
@@ -511,6 +588,37 @@ read_data ()
   fscanf (cfg_file_ptr,"%s",dummy_string);
   fscanf (cfg_file_ptr,"%ld",&nturn);
   printf ("n_diag=%ld\n",n_diag);
+  /*----------------------------------*/
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf",&damperratex);
+  printf ("damperratex=%lf\n",damperratex); 
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf",&damperratey);
+  printf ("damperratey=%lf\n",damperratey); 
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%ld\n",&isynchrad);
+  printf ("isynchrad=%ld\n",isynchrad);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf\n",&synchdampx);
+  printf ("synchdampx=%lf\n",synchdampx);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf\n",&synchdampy);
+  printf ("synchdampy=%lf\n",synchdampy);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf\n",&synchdampz);
+  printf ("synchdampz=%lf\n",synchdampz);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf\n",&eq_emitx);
+  printf ("eq_emitx=%e\n",eq_emitx);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf\n",&eq_emity);
+  printf ("eq_emity=%e\n",eq_emity);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf\n",&eq_sigs);
+  printf ("eq_sigs=%lf\n",eq_sigs);
+  fscanf (cfg_file_ptr,"%s",dummy_string);
+  fscanf (cfg_file_ptr,"%lf\n",&eq_sigp);
+  printf ("eq_sigp=%lf\n",eq_sigp);
 
   fclose(cfg_file_ptr);
   printf ("\n\n\t\tConfiguration-file loaded successfully.\n") ;
@@ -594,10 +702,21 @@ init_values ()
 { int im;
   double accum;
 
-  dstep = ss1-ss0;
+  gammaprev = benergy0*1.e3/0.511;
+  eta = alpha - 1/gammaprev/gammaprev;
+  betar = sqrt(1.-1./gammaprev/gammaprev);
+  omegas = nus*betar*C/circ*2*PI;
 
-  tstepp = dstep/C;
-  tstep = 4*sz0*1.e-9;
+  dstep = ss1-ss0;
+  //dstep = 2.0;
+ 
+  gap=0.0;
+  if(NBUN<(double)hh){
+    gap = circ/C*1.0e9-bsp*NBUN;
+  };
+
+  tstepp = dstep/C/betar;
+  tstep = 4*sz0/C/betar;
   ptot = 0.;
   accum = 0.;
 
@@ -650,8 +769,7 @@ init_values ()
   coe4y = 1/coe2y;
   coe4ybis = 1. + alfay1*alfay0;
   coe4yter = alfay0 - alfay1;
-
-  gammaprev = benergy0*1.e3/0.511;   
+   
   sx0 = sqrt(betax0*emxN0*1.e-9/gammaprev);
   sx1 = sqrt(betax1*emxN0*1.e-9/gammaprev);
   sy0 = sqrt(betay0*emyN0*1.e-9/gammaprev);
@@ -661,7 +779,11 @@ init_values ()
   sxa = sin(mux0);
   cya = cos(muy0);
   sya = sin(muy0);
-   
+
+  // For longitudinal motion - so far only once per turn
+  // Assumes constant energy over tracking check twiss table!!
+  csa = cos(omegas*circ/betar/C);
+  ssa = sin(omegas*circ/betar/C);
  
   n_diag2 = nstep/10;
   if(nstep<10) n_diag2=1;
@@ -674,6 +796,20 @@ init_values ()
   sx0fion = 7.e-6;
   sy0fion = 4.e-6;
   drrefill = 1.e-7;
+
+  /*Initialize radiation damping variables*/
+  if (isynchrad==1){
+   eq_sigx  = sqrt(eq_emitx*betax0);
+   eq_sigxp = sqrt(eq_emitx/betax0);
+   eq_sigy  = sqrt(eq_emity*betay0);
+   eq_sigyp = sqrt(eq_emity/betay0);
+   lx       = exp(-1.0/synchdampx);
+   ly       = exp(-1.0/synchdampy);
+   lz       = exp(-1.0/synchdampz);
+   slx      = sqrt(1.0-lx*lx);
+   sly      = sqrt(1.0-ly*ly);
+   slz      = sqrt(1.0-lz*lz);
+  };
  
 }
 
@@ -692,9 +828,11 @@ update_values ()
 { double gamma_ave, dstep0;
  
   gammanext = benergy[it]*1.e3/0.511;
+  betar = sqrt(1.-1./gammanext/gammanext);
   dstep0 = dstep;
   dstep = long_pos[it]-long_pos[it-1];
-  tstepp = dstep/C;
+  //dstep=2.0;
+  tstepp = dstep/C/betar;
   qion *=dstep/dstep0;
 
   if (i_cool==0){
@@ -987,8 +1125,8 @@ int generate ()
      xoffc = 0.;
      yoffc = 0.;
      ffrank_(&xtst,&ytst,&xoffc,&yoffc,&sxx0,&syy0,&pre,&pim,&ili);
-     //elec_norm = E*nele/4./PI/EPS0/sz0/0.3*sqrt(pre*pre+pim*pim)/elec_thresh/1.e9;
-     elec_norm = E*nele/4./PI/EPS0/sz0/0.3*sqrt(pre*pre)/elec_thresh/1.e9;
+     //elec_norm = E*nele/4./PI/EPS0/sz0/C/0.3*sqrt(pre*pre+pim*pim)/elec_thresh;
+     elec_norm = E*nele/4./PI/EPS0/sz0/C/0.3*sqrt(pre*pre)/elec_thresh;
      if(elec_norm>1.0){
        //ifi = 1;
        //printf("qqy = %d \n", qq);
@@ -1003,8 +1141,8 @@ int generate ()
      xoffc = 0.;
      yoffc = 0.;
      ffrank_(&xtst,&ytst,&xoffc,&yoffc,&sxx0,&syy0,&pre,&pim,&ili);
-     //elec_norm = E*nele/4./PI/EPS0/sz0/0.3*sqrt(pre*pre+pim*pim)/elec_thresh/1.e9;
-     elec_norm = E*nele/4./PI/EPS0/sz0/0.3*sqrt(pre*pre)/elec_thresh/1.e9;
+     //elec_norm = E*nele/4./PI/EPS0/sz0/C/0.3*sqrt(pre*pre+pim*pim)/elec_thresh;
+     elec_norm = E*nele/4./PI/EPS0/sz0/C/0.3*sqrt(pre*pre)/elec_thresh;
      if(elec_norm>maxe) {
        maxe = elec_norm;
        ymax = ytst;
@@ -1017,8 +1155,8 @@ int generate ()
      xoffc = 0.;
      yoffc = 0.;
      ffrank_(&xtst,&ytst,&xoffc,&yoffc,&sxx0,&syy0,&pre,&pim,&ili);
-     //elec_norm = E*nele/4./PI/EPS0/sz0/0.3*sqrt(pre*pre+pim*pim)/elec_thresh/1.e9;
-     elec_norm = E*nele/4./PI/EPS0/sz0/0.3*sqrt(pim*pim)/elec_thresh/1.e9;
+     //elec_norm = E*nele/4./PI/EPS0/sz0/C/0.3*sqrt(pre*pre+pim*pim)/elec_thresh;
+     elec_norm = E*nele/4./PI/EPS0/sz0/C/0.3*sqrt(pim*pim)/elec_thresh;
      if(elec_norm>maxe) maxe = elec_norm;
      
      if(elec_norm>1.0){
@@ -1036,7 +1174,7 @@ int generate ()
      xoffc = 0.;
      yoffc = 0.;
      ffrank_(&xtst,&ytst,&xoffc,&yoffc,&sxx0,&syy0,&pre,&pim,&ili);
-     elec_norm = E*nele/4./PI/EPS0/sz0/0.3*sqrt(pre*pre+pim*pim)/elec_thresh/1.e9;
+     elec_norm = E*nele/4./PI/EPS0/sz0/C/0.3*sqrt(pre*pre+pim*pim)/elec_thresh;
      
      if(elec_norm>1.0){
        //ifi = 1;
@@ -1090,8 +1228,8 @@ int generate ()
 	   j=nspe+1;
 	 }
        
-       if(fabs(xion[i])>xion_max) xion_max=fabs(xion[i]);
-       if(fabs(yion[i])>yion_max) yion_max=fabs(yion[i]);
+       //if(fabs(xion[i])>xion_max) xion_max=fabs(xion[i]);
+       //if(fabs(yion[i])>yion_max) yion_max=fabs(yion[i]);
        //printf("%d  %lf  %lf  %d  %lf  %lf \n", 
        //  i, xion[i]*1.e9, yion[i]*1.e9, mion[i], xion_max*1.e9, yion_max*1.e9);
      }
@@ -1153,8 +1291,8 @@ int generate ()
 	     j=nspe+1;
 	   }
 	 
-	 if(fabs(xion[i])>xion_max) xion_max=fabs(xion[i]);
-	 if(fabs(yion[i])>yion_max) yion_max=fabs(yion[i]);
+	 //if(fabs(xion[i])>xion_max) xion_max=fabs(xion[i]);
+	 //if(fabs(yion[i])>yion_max) yion_max=fabs(yion[i]);
 	 //printf("%d  %lf  %lf  %d  %lf  %lf \n", 
 	 //  i, xion[i]*1.e9, yion[i]*1.e9, mion[i], xion_max*1.e9, yion_max*1.e9);
        }
@@ -1214,8 +1352,8 @@ int generate ()
 	     j=nspe+1;
 	   }
 	 
-	 if(fabs(xion[i])>xion_max) xion_max=fabs(xion[i]);
-	 if(fabs(yion[i])>yion_max) yion_max=fabs(yion[i]);
+	 //if(fabs(xion[i])>xion_max) xion_max=fabs(xion[i]);
+	 //if(fabs(yion[i])>yion_max) yion_max=fabs(yion[i]);
 	 //printf("%d  %lf  %lf  %d  %lf  %lf \n", 
 	 //  i, xion[i]*1.e9, yion[i]*1.e9, mion[i], xion_max*1.e9, yion_max*1.e9);
        }
@@ -1247,7 +1385,7 @@ int generate ()
 
 bunch_properties ()
 
-{ double xsum, ysum, xpsum, ypsum, x2sum, y2sum, xp2sum, yp2sum, xpprsum, ypprsum, xel_max_loc, yel_max_loc;
+{ double xsum, ysum, xpsum, ypsum, zsum, dpsum, x2sum, y2sum, xp2sum, yp2sum, z2sum, dp2sum, xpprsum, ypprsum, zpprsum, xel_max_loc, yel_max_loc;
  long i,j;  
   
  for(i=0; i<NBUN; i++) {
@@ -1256,10 +1394,14 @@ bunch_properties ()
    ysum = 0.0; 
    xpsum = 0.0;
    ypsum = 0.0; 
+   zsum = 0.0;
+   dpsum = 0.0;
    x2sum = 0.0;
    y2sum = 0.0;
    xp2sum = 0.0;
    yp2sum = 0.0;
+   z2sum = 0.0;
+   dp2sum = 0.0;
    xpprsum = 0.0;
    ypprsum = 0.0;
    xel_max_loc = 0.0;
@@ -1271,6 +1413,8 @@ bunch_properties ()
      ysum += yel[j];
      xpsum += xpel[j];
      ypsum += ypel[j];
+     zsum += szel[j];
+     dpsum += dpel[j];
      if(fabs(xel[j])>xel_max_loc) xel_max_loc = fabs(xel[j]);
      if(fabs(yel[j])>yel_max_loc) yel_max_loc = fabs(yel[j]);
    }
@@ -1279,24 +1423,35 @@ bunch_properties ()
    ysum /= (double)NELB;
    xpsum /= (double)NELB;
    ypsum /= (double)NELB;
+   zsum /= (double)NELB;
+   dpsum /= (double)NELB;
 
    for (j=i*NELB; j<(i+1)*NELB; j++)
      { x2sum += (xel[j]-xsum)*(xel[j]-xsum);
      y2sum += (yel[j]-ysum)*(yel[j]-ysum);
      xp2sum += (xpel[j]-xpsum)*(xpel[j]-xpsum);
      yp2sum += (ypel[j]-ypsum)*(ypel[j]-ypsum);
+     z2sum += (szel[j]-zsum)*(szel[j]-zsum); 
+     dp2sum += (dpel[j]-dpsum)*(dpel[j]-dpsum);
      xpprsum += (xel[j]-xsum)*(xpel[j]-xpsum);
      ypprsum += (yel[j]-ysum)*(ypel[j]-ypsum);
+     zpprsum += (szel[j]-zsum)*(dpel[j]-dpsum);
    }
 
    xs[i] = xsum;
    ys[i] = ysum;
+   zs[i] = zsum;
+   dps[i] = dpsum;
    sxs[i] = sqrt(x2sum/(double)NELB);
    sys[i] = sqrt(y2sum/(double)NELB);
+   szs[i] = sqrt(z2sum/(double)NELB);
+   sdps[i] = sqrt(dp2sum/(double)NELB);
    sxp2s[i] = xp2sum/(double)NELB;
    syp2s[i] = yp2sum/(double)NELB;
+   sdp2s[i] = dp2sum/(double)NELB;
    xppr[i] = xpprsum/(double)NELB;
    yppr[i] = ypprsum/(double)NELB;
+   zppr[i] = zpprsum/(double)NELB;
    xel_max[i] = xel_max_loc;
    yel_max[i] = yel_max_loc;
 
@@ -1329,11 +1484,15 @@ ion_properties ()
  x2sum = 0.0;
  y2sum = 0.0;
  ioncount = 0;
+ xion_max=0.0;
+ yion_max=0.0;
 
  for (j=0; j<ntemp; j++) {
      xsum += xion[j];
      ysum += yion[j];
      ioncount++;
+     if(fabs(xion[j])>xion_max) xion_max=fabs(xion[j]);
+     if(fabs(yion[j])>yion_max) yion_max=fabs(yion[j]);
  }
  
  xsum /= (double)ioncount;
@@ -1363,7 +1522,7 @@ ion_properties ()
 
 initialization ()
 
-{ double xkick, ykick, xsum, ysum, xpsum, ypsum, u, v, s;
+{ double xkick, ykick, xsum, ysum, xpsum, ypsum,zsum, dpsum, u, v, s;
   long i,j;  
 
   for (j=0; j<NBUN; j++) {
@@ -1373,6 +1532,8 @@ initialization ()
     ypsum = 0.0;
     xkick = 0.0;
     ykick = 0.0;
+    zsum = 0.0;
+    dpsum = 0.0;
 
     switch (i_kick){
 
@@ -1413,16 +1574,30 @@ initialization ()
       yel[i] = sy0 * u * cos(v);
       ypel[i] = -sy0/betay0 * u * (sin(v) + alfay0 * cos(v));
 
+      do { 
+        u = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
+	v = 2.0 * rand () / (double)RAND_MAX - 1.0 ;
+	s = u*u + v*v ; }
+      while (s >= 1.0) ;      
+      szel[i] = sz0 * u * sqrt(-2.0*log(s)/s);
+      dpel[i] = dp0 * v * sqrt(-2.0*log(s)/s);
+
       xsum += xel[i];
       ysum += yel[i];
       xpsum += xpel[i];
       ypsum += ypel[i];
+      zsum += szel[i];
+      dpsum += dpel[i];
+
     }
    
     xave = xsum/(double)NELB;
     yave = ysum/(double)NELB;
     xpave = xpsum/(double)NELB;
     ypave = ypsum/(double)NELB;
+    zave = zsum/(double)NELB;
+    dpave = dpsum/(double)NELB;
+
     /*   
 	 for (i=j*NELB; i<(j+1)*NELB; i++)
 	 { xel[i] += xkick - xave;
@@ -1552,6 +1727,8 @@ open_files ()
 
 { char   chap[3]              ,
     ions_filename[80]         ,            /* ion trajectories over whole run    */
+    ions_b1_filename[80]      ,
+    ions_bn_filename[80]      ,
     cntr_filename[80]         ,            /* train properties                   */ 
     trainhdtl_fname[80]       ,            /* train head-tail distribution       */ 
     elephase_fname[80]        ,            /* ....                               */
@@ -1620,6 +1797,14 @@ open_files ()
  strcat(ions_filename, "_ions.dat");
  ions_pr = fopen(ions_filename, "w");
 
+ strcpy(ions_b1_filename, filename);
+ strcat(ions_b1_filename, "_ionsb1.dat");
+ ions_b1 = fopen(ions_b1_filename, "w");
+
+ strcpy(ions_bn_filename, filename);
+ strcat(ions_bn_filename, "_ionsbn.dat");
+ ions_bn = fopen(ions_bn_filename, "w");
+
  strcpy(grid_filename, filename);
  strcat(grid_filename, "_grid.dat");
  grid_pr = fopen(grid_filename, "w");
@@ -1652,10 +1837,9 @@ double f_potential(double x,double y)
 {
   double sum;
   sum=x*y*(log(x*x+y*y)-3.0)+x*x*atan(y/x)+y*y*atan(x/y);
+  //sum=1;
   return sum;
 }
-
-
 
 
 /*****************************************************************
@@ -2474,104 +2658,136 @@ int main (int argc, char *argv[])
   printf ("\t\t Complete\n") ;
 
   if(iion==1)  
-    grid=grid_init_comp(256,256);
+    grid=grid_init_comp(NDC,NDC);
   
   fprintf (ion_inphase, "electrons per bunch = %d\t  ions per bunch = %d\t number of bunches = %d\n",NELB,NION,NBUN);
 
   /* Loop over turns starts */
+  clock_t t;
 
   for (nt=1; nt<=nturn; nt++) {
+    t = clock();
 
     /* here the loop over the total number of steps (interaction points) 
        starts...                                                             */
   
     for(it=1; it<nstep; it++) { 
-      xion_max = 0.0;
-      yion_max = 0.0;      
+      //xion_max = 0.0;
+      //yion_max = 0.0;      
 	
-      timep = (double)(it - 1)*tstepp;
+      timep = (double)(it - 1)*tstepp+(nt-1)*circ/C/betar*1.0e9;
       printf("%ld %ld %f \n",nt,it,timep);
       
       for(lmain=0;lmain<3;lmain++) {
 	xave = 0.0;
 	yave = 0.0;
 	zave = 0.0;
+        dpave = 0.0;
 	xpave = 0.0;
 	ypave = 0.0;
 	xemit = 0.0;
 	yemit = 0.0;
+        zemit = 0.0;
+	sxsize = 0.0;
+	sysize = 0.0;
+        szsize = 0.0;
+	sxpsize = 0.0;
+	sypsize = 0.0; 
+        dpsize = 0.0;
 	
 	for(imain=lmain*NELB*NBUN/3; imain<(lmain+1)*NELB*NBUN/3; imain++) { 
 	  xave += xel[imain];
 	  yave += yel[imain];
 	  xpave += xpel[imain];
 	  ypave += ypel[imain];
+          zave += szel[imain];
+          dpave += dpel[imain];
 	}
 	  
 	xave /= (double)(NELB*NBUN/3);
 	yave /= (double)(NELB*NBUN/3);
 	xpave /= (double)(NELB*NBUN/3);
 	ypave /= (double)(NELB*NBUN/3);
+        zave /= (double)(NELB*NBUN/3);
+        dpave /= (double)(NELB*NBUN/3);
 	
 	for(imain=lmain*NELB*NBUN/3; imain<(lmain+1)*NELB*NBUN/3; imain++) {
 	  sxsize += (xel[imain] - xave)*(xel[imain] - xave);
 	  sysize += (yel[imain] - yave)*(yel[imain] - yave);
+          szsize += (szel[imain] - zave)*(szel[imain] - zave);
 	  sxpsize += (xpel[imain] - xpave)*(xpel[imain] - xpave);
 	  sypsize += (ypel[imain] - ypave)*(ypel[imain] - ypave); 
+          dpsize += (dpel[imain] - dpave)*(dpel[imain] - dpave);
 	  xemit += (xel[imain] - xave)*(xpel[imain] - xpave);
 	  yemit += (yel[imain] - yave)*(ypel[imain] - ypave);
+          zemit += (szel[imain] - zave)*(dpel[imain] - dpave);
 	}
 	  
 	sxsize = sqrt(sxsize/(double)(NELB*NBUN/3));
 	sysize = sqrt(sysize/(double)(NELB*NBUN/3));
+        szsize = sqrt(szsize/(double)(NELB*NBUN/3));
+        dpsize = sqrt(dpsize/(double)(NELB*NBUN/3));
 	sxpsize /= (double)(NELB*NBUN/3);
 	sypsize /= (double)(NELB*NBUN/3);
 	xemit /= (double)(NELB*NBUN/3);
 	yemit /= (double)(NELB*NBUN/3);
+        zemit /= (double)(NELB*NBUN/3);
 	  
 	if(lmain==0)
-	  fprintf(centr_pr,"%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  ",
-		  timep,long_pos[it-1],xave,yave,sxsize,sysize,sqrt(sxsize*sxsize*sxpsize-xemit*xemit),
-		  sqrt(sysize*sysize*sypsize-yemit*yemit));
+	  fprintf(centr_pr,"%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e %13.8e  %13.8e  %13.8e ",
+		  timep,long_pos[it-1],xave,yave,zave,dpave,sxsize,sysize,szsize,dpsize,sqrt(sxsize*sxsize*sxpsize-xemit*xemit),
+		  sqrt(sysize*sysize*sypsize-yemit*yemit),sqrt(szsize*szsize*dpsize-zemit*zemit));
 	if(lmain==1)
-	  fprintf(centr_pr,"%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  ",
-		  xave,yave,sxsize,sysize,sqrt(sxsize*sxsize*sxpsize-xemit*xemit),
-		  sqrt(sysize*sysize*sypsize-yemit*yemit));
+	  fprintf(centr_pr,"%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  ",
+		  xave,yave,zave,dpave,sxsize,sysize,szsize,dpsize,sqrt(sxsize*sxsize*sxpsize-xemit*xemit),
+		  sqrt(sysize*sysize*sypsize-yemit*yemit),sqrt(szsize*szsize*dpsize-zemit*zemit));
 	if(lmain==2)
-	  fprintf(centr_pr,"%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",
-		  xave,yave,sxsize,sysize,sqrt(sxsize*sxsize*sxpsize-xemit*xemit),
-		  sqrt(sysize*sysize*sypsize-yemit*yemit));
+	  fprintf(centr_pr,"%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",
+		  xave,yave,zave,dpave,sxsize,sysize,szsize,dpsize,sqrt(sxsize*sxsize*sxpsize-xemit*xemit),
+		  sqrt(sysize*sysize*sypsize-yemit*yemit),sqrt(szsize*szsize*dpsize-zemit*zemit));
       
       }
+
       bunch_properties();	//defines vectors sxs,sys,xs,ys, xel_max, yel_max
-    
-      update_values ();
+   
+      update_values();
 	
       for(jmain=0; jmain<NBUN; jmain++) { 
 	sx = sxs[jmain];
 	sy = sys[jmain];
+        ssz = szs[jmain];
+        sdp = sdps[jmain];
 	xoff = xs[jmain];
 	yoff = ys[jmain];
+        zoff = zs[jmain];
+        dpoff = dps[jmain];
 	sxp2 = sxp2s[jmain];
 	syp2 = syp2s[jmain];
+        sdp2 = sdp2s[jmain];
 	sxppr = xppr[jmain];
 	syppr = yppr[jmain];
+        szppr = zppr[jmain];
 	localemitx = sqrt(sx*sx*sxp2 - sxppr*sxppr);
 	localemity = sqrt(sy*sy*syp2 - syppr*syppr);
+        localemitz = sqrt(ssz*ssz*sdp2 - szppr*szppr);
 	    
 	/* offsets and rms sizes of the bunches are printed to file          */
 	if(it % n_diag == 0 || it == 1) 
-	  fprintf(trainhdtl_pr, "%13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",
-		  (double)jmain*bsp, xoff, yoff, sx, sy, 
-		  sx*sx/betarrayx[it-1]*gammaprev*1.e9, sy*sy/betarrayy[it-1]*gammaprev*1.e9, 
-		  localemitx*gammaprev*1.e9, localemity*gammaprev*1.e9);
+	  fprintf(trainhdtl_pr, "%13.8e %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e %13.8e  %13.8e  %13.8e  %13.8e  %13.8e  %13.8e\n",
+		  timep, (double)jmain*bsp, xoff, yoff, zoff, dpoff, sx, sy, ssz, sdp,
+		  sx*sx/betarrayx[it-1]*gammaprev*1.e9, sy*sy/betarrayy[it-1]*gammaprev*1.e9,ssz*ssz*omegas/eta/betar/C, 
+		  localemitx*gammaprev*1.e9, localemity*gammaprev*1.e9,localemitz);
 	    
 	if (iion==1) {
 	      
 	  ionoutgrid = 0;
-	  generate();
-	      
-	  ntemp = (jmain+1)*NION;
+           
+          if(nt==1){
+	   generate();    
+	   ntemp = (jmain+1)*NION;
+          }else{
+           ntemp = NBUN*NION;
+          }
 	  
 	  ion_properties();
 	  //printf ("\n it = %d, n_diag2 = %d, ntemp = %d \n",it,n_diag2,ntemp);	
@@ -2579,7 +2795,8 @@ int main (int argc, char *argv[])
 	  abs_index = (it-1)/n_diag2;
 	  dg_index = (it-1)%n_diag2;
 	  //printf ("\n abs_index = %d, dg_index = %d, ntemp = %d \n",abs_index,dg_index,ntemp);	
-	  if (dg_index==0) {
+	  //if (dg_index==0) {
+          /*if(jmain==1 | jmain==NBUN-1) {
 	    verteilq (xion,qionfi,dstep,ntemp,hdp,NDC,indxp);
 	    verteil (vprionx,NION,hdp2,NDC,indxp2);	
 	    for (lmain=0; lmain<NDC; lmain++)
@@ -2593,7 +2810,7 @@ int main (int argc, char *argv[])
 	      fprintf(ion_iniy[abs_index],"%13.8e  %13.8e  %13.8e  %13.8e\n",
 		      indxp[lmain],hdp[lmain],indxp2[lmain],hdp2[lmain]);
 	    fprintf(ion_iniy[abs_index],"\n\n");
-	  }
+	  }*/
 	      
 	  if(xion_max < fabs(xsion)+4*sxsion && yion_max < fabs(ysion)+4*sysion) {    
 	    gridextx = 1.1*fmax(xion_max,10.*xel_max[jmain]);
@@ -2603,13 +2820,21 @@ int main (int argc, char *argv[])
 	    gridextx = 1.1*fmax(fabs(xsion)+5.*sxsion,10.*xel_max[jmain]);
 	    gridexty = 1.1*fmax(fabs(ysion)+5.*sysion,10.*yel_max[jmain]);
 	  }
+ 
+          //gridextx = 1.1*10.*xel_max[jmain];
+          //gridexty = 1.1*10.*yel_max[jmain];
+          
 	  
 	  fprintf (grid_pr, "%ld  %d  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e  %13.5e\n",
 		   it,jmain,gridextx*1.e9,gridexty*1.e9,1.1e9*xion_max,1.1e9*yion_max,1.1e9*(fabs(xsion)+5.*sxsion),
 		   1.1e9*(fabs(ysion)+5.*sysion),1.1e9*10.*xel_max[jmain],1.1e9*10.*yel_max[jmain]);
 	      
+	  //if(jmain==0){
+	  //   grid_init_phys(grid,0.025,0.01);
+	  //}
 	  grid_init_phys(grid,gridextx,gridexty);
 	  
+
 	  for(kmain=0; kmain<NELB; kmain++) { 
 	    vprelx[kmain] = xel[jmain*NELB+kmain];
 	    vprely[kmain] = yel[jmain*NELB+kmain];
@@ -2630,32 +2855,52 @@ int main (int argc, char *argv[])
 	  //printf ("\n bunch number = %d, qe0 = %lf, qion = %lf \n",jmain,qe0,qion);
 	  
 
-	  /* calculate the forces */
+	  // calculate the forces 
 	  
 	  field_calculate(grid);
 	  
-	  /* move the ions - kick the beam electrons */
+	  // move the ions - kick the beam electrons 
 	  
 	  particles_move(grid,vprelx,vprely,vprelxp,vprelyp,NELB,tstep,fscale2);
 	  particles_move_ion(grid,xion,yion,xpion,ypion,mion,ntemp,tstep,fscale1);
-	  fprintf(ele_phase, "%ld  %ld  %ld  %lg\n ", it, jmain, ionoutgrid, (double)ionoutgrid/(double)ntemp*100.);
+	  fprintf(ele_phase, "%ld %ld  %ld  %ld  %lg\n ",nt, it, jmain, ionoutgrid, (double)ionoutgrid/(double)ntemp*100.);
 	  
 	  //have to initialize mion[], a vector containing a flag for the ion type -i.e. mion[k] is the integer
 	  //corresponding to which ion type the k-th ion is 
 	  
+          
 	  for(kmain=0; kmain<NELB; kmain++) { 
 	    xel[jmain*NELB+kmain] = vprelx[kmain] ;
 	    yel[jmain*NELB+kmain] = vprely[kmain] ;
 	    xpel[jmain*NELB+kmain] = vprelxp[kmain] ;
 	    ypel[jmain*NELB+kmain] = vprelyp[kmain] ;
 	  }
+
+          if(jmain==0){
+            for(lmain=0; lmain<ntemp; lmain++){
+              fprintf(ions_b1, "%ld %lg %lg %lg %lg %ld %lg\n",
+                      nt, xion[lmain], yion[lmain], xpion[lmain], ypion[lmain], 
+                      mion[lmain], qionfi[lmain/NION]);
+            }
+          }
+
+          if(jmain==NBUN-1){
+            for(lmain=0; lmain<ntemp; lmain++){
+              fprintf(ions_bn, "%ld %lg %lg %lg %lg %ld %lg\n",
+                      nt, xion[lmain], yion[lmain], xpion[lmain], ypion[lmain], 
+                      mion[lmain], qionfi[lmain/NION]);
+            }
+          }
 	  
 	  
 	  for (kmain=0; kmain<ntemp; kmain++) {
-	    xion[kmain]+=xpion[kmain]*bsp*1e-9;
-	    yion[kmain]+=ypion[kmain]*bsp*1e-9;
-	    if(fabs(xion[kmain])>xion_max) xion_max=fabs(xion[kmain]);
-	    if(fabs(yion[kmain])>yion_max) yion_max=fabs(yion[kmain]);
+            if(jmain<NBUN-1 | gap==0.0){
+	     xion[kmain]+=xpion[kmain]*bsp*1e-9;
+	     yion[kmain]+=ypion[kmain]*bsp*1e-9;
+            }else{
+             xion[kmain]+=xpion[kmain]*gap*1e-9;
+	     yion[kmain]+=ypion[kmain]*gap*1e-9;
+            }
 	  }
 	      
 	  if (dg_index==0)
@@ -2671,9 +2916,9 @@ int main (int argc, char *argv[])
 	      
 	}
 	    
-	/*  and  now the kick due to the wake-field is added
-	    to the x' and y' of each proton in order to study the combined
-	    effect ion + wake-field                                         */ 
+	//  and  now the kick due to the wake-field is added
+	//  to the x' and y' of each proton in order to study the combined
+	//  effect ion + wake-field                                          
 	
 	if (iwake_flag == 1) { 
 	  forkickx = 0.;
@@ -2767,6 +3012,64 @@ int main (int argc, char *argv[])
       fprintf(ions_pr, "\n\n");
       
     }
+
+    //Apply RF, radiation damping and feedback only once per turn
+
+    bunch_properties();	//defines vectors sxs,sys,xs,ys,xel_max,yel_max
+
+    /* bunch by bunch ideal damper */ 
+   
+    if(damperratex>0.){
+      for(jmain=0; jmain<NBUN; jmain++){ 
+        for(kmain=0; kmain<NELB; kmain++){ 
+          xel[jmain*NELB+kmain] -= 2.*damperratex * xs[jmain];
+        };
+      };
+    };
+
+   
+    if(damperratey>0.){
+      for(jmain=0; jmain<NBUN; jmain++){ 
+        for(kmain=0; kmain<NELB; kmain++){ 
+          yel[jmain*NELB+kmain] -= 2.*damperratey * ys[jmain];
+        };
+      };
+    };
+
+    /*Longitudinal motion - linear bucket*/
+    if(isyn==1){
+      for(kmain=0; kmain<NBUN*NELB; kmain++){
+         szz0 = szel[kmain];
+         dpp0 = dpel[kmain];
+	 szel[kmain] = csa * szz0 - eta * betar * C/omegas * ssa * dpp0;
+	 dpel[kmain] = csa * dpp0 + omegas/eta/betar/C * ssa * szz0;
+      };
+    };
+
+
+   /*Synchrotron radiation damping and diffusion
+   Gaussian noise was not giving proper equilibrium emittance
+   use uniform noise with rms=1 instead*/
+
+   if(isynchrad==1){
+     for(kmain=0; kmain<NBUN*NELB; kmain++){
+       rannum = (2.0*rand()/(double)RAND_MAX-1.0)*sqrt(3.0);
+       xel[kmain] = lx*xel[kmain] + slx*rannum*eq_sigx;
+       rannum = (2.0*rand()/(double)RAND_MAX-1.0)*sqrt(3.0);
+       xpel[kmain] = lx*xpel[kmain] + slx*rannum*eq_sigxp;
+       rannum = (2.0*rand()/(double)RAND_MAX-1.0)*sqrt(3.0);
+       yel[kmain] = ly*yel[kmain] + sly*rannum*eq_sigy;
+       rannum = (2.0*rand()/(double)RAND_MAX-1.0)*sqrt(3.0);
+       ypel[kmain] = ly*ypel[kmain] + sly*rannum*eq_sigyp;
+       rannum = (2.0*rand()/(double)RAND_MAX-1.0)*sqrt(3.0);
+       szel[kmain]  = lz*szel[kmain] + slz*rannum*eq_sigs;
+       rannum = (2.0*rand()/(double)RAND_MAX-1.0)*sqrt(3.0);
+       dpel[kmain]  = lz*dpel[kmain] + slz*rannum*eq_sigp;
+     };     
+   };
+
+   t = clock()-t;
+   printf ("It took %f seconds.\n",((float)t)/CLOCKS_PER_SEC);
     
   }
   

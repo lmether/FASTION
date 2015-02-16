@@ -2506,33 +2506,20 @@ int main (int argc, char *argv[])
 	    vprelxp[kmain] = xpel[jmain*NELB+kmain];
 	    vprelyp[kmain] = ypel[jmain*NELB+kmain];
 	  }
-	      
+	  
+	  // Distribute particles
 	  particles_distribute(grid,vprelx,vprely,NELB,1,qe0);
 	  particles_distribute(grid,xion,yion,ntemp,2,qionfi);
 	  
-	  /* switch(ifi) { */
-	  /* case 0: */
-	  /*   particles_distribute(grid,xion,yion,ntemp,2,qion); */
-	  /*   break; */
-	  /* case 1: */
-	  /*   particles_distribute2(grid,xion,yion,ntemp,qionfi); */
-	  /*   break; */
-	  /* } */
-	  //printf ("\n bunch number = %d, qe0 = %lf, qion = %lf \n",jmain,qe0,qion);
-	  
-
-	  /* calculate the forces */
-	  
+	  // Calculate the forces
 	  field_calculate(grid);
 	  
-	  /* move the ions - kick the beam electrons */
-	  
+	  // Kick particles
 	  particles_move(grid,vprelx,vprely,vprelxp,vprelyp,mion,NELB,tstep,1,fscale2);
 	  particles_move(grid,xion,yion,xpion,ypion,mion,ntemp,tstep,2,fscale1);
+
 	  fprintf(ele_phase, "%ld  %ld  %ld  %lg\n ",it, jmain, ionoutgrid, (double)ionoutgrid/(double)ntemp*100.);
 	  
-	  //have to initialize mion[], a vector containing a flag for the ion type -i.e. mion[k] is the integer
-	  //corresponding to which ion type the k-th ion is 
 	  
 	  for(kmain=0; kmain<NELB; kmain++) { 
 	    xel[jmain*NELB+kmain] = vprelx[kmain] ;
@@ -2541,7 +2528,7 @@ int main (int argc, char *argv[])
 	    ypel[jmain*NELB+kmain] = vprelyp[kmain] ;
 	  }
 	  
-	  
+	  // Move ions
 	  for (kmain=0; kmain<ntemp; kmain++) {
 	    xion[kmain]+=xpion[kmain]*bsp*1e-9;
 	    yion[kmain]+=ypion[kmain]*bsp*1e-9;
@@ -2622,7 +2609,7 @@ int main (int argc, char *argv[])
 	  
 	}
 	
-      }     //closes the loop on bunches ->jmain
+      }     //end loop over bunches -> jmain
 	
       /* loop over all the bunch particles starts, for the transformation of
 	 their phase space coordinates all through the piece of ring
@@ -2657,9 +2644,9 @@ int main (int argc, char *argv[])
       fprintf(trainhdtl_pr,"\n");
       fprintf(ions_pr, "\n\n");
       
-    }
+    } //end loop over lattice -> nstep
     
-  }
+  } //end loop over turns -> nt
   
   free_dvector(pss,0,nspe-1);
   free_dvector(am,0,nspe-1);

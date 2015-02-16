@@ -218,12 +218,12 @@ double xel[NBUN*NELB]       ,   /* horizontal coordinate for electrons          
        xion_max             ,   /* [m] maximum ion x position                       */
        yion_max             ,   /* [m] minimum ion y position                       */
        factor2              ,   /* auxiliary parameter for the force calculation    */
-       fscale2              ,   /* auxiliary parameter for the force calculation    */
+       fscale2[1]           ,   /* auxiliary parameter for the force calculation    */
        wakefac              ,   /* factor for the wake field kick                   */
        tstepp               ,   /* time step between two interactions               */
        tstep                ,   /* time step during the interaction bunch-cloud     */
        dstep                ,   /* s-distance between two kick points               */
-       qe0                  ,   /* number of electrons in one macroelectron         */
+       qe0[1]               ,   /* number of electrons in one macroelectron         */
        qion                 ,   /* number of ions in one macroion                   */
        cxya                 ,   /* cxya -> sxya: transport parameters for the phase */
        sxya                 ,   /* space coordinates of the bunch particles         */
@@ -611,7 +611,7 @@ init_values ()
     accum+=crsec[im]*pss[im];
   }
  
-  qe0 = nele/(double)NELB;   
+  qe0[0] = nele/(double)NELB;   
  
   nionpb = 0.;
  
@@ -669,7 +669,7 @@ init_values ()
   wakefac = - E*E/(ME*gammaprev*C*C);
 
   factor2 = RE*sqrt(2*PI)/gammaprev/tstep;
-  fscale2 = factor2/sqrt(2*PI);
+  fscale2[0] = factor2/sqrt(2*PI);
   
   sx0fion = 7.e-6;
   sy0fion = 4.e-6;
@@ -734,7 +734,7 @@ update_values ()
  
   gamma_ave = (gammanext + gammaprev)/2.;
   factor2 = RE*sqrt(2*PI)/gamma_ave/tstep;
-  fscale2 = factor2/sqrt(2*PI);
+  fscale2[0] = factor2/sqrt(2*PI);
 
   /* if 'crsec' is function of energy (gammanext) use these lines to update ... 
     
@@ -1662,63 +1662,7 @@ double f_potential(double x,double y)
  Particle distribution routines
 ******************************************************************/
 
-void particles_distribute(GRID *grid,double x[],double y[],int n,int i_which,double n_macro)
-{
-  int i,j,i1,i2;
-  double d_x,d_y,delta_x_i,delta_y_i,offset_x,offset_y;
-  double cut_x,cut_y,max_x,max_y;
-  double h_x,h_y;
-  double *rho;
-  int n_x,n_y;
-  int distribute_in=0,distribute_out=0;
-
-  n_x=grid->n_cell_x;
-  n_y=grid->n_cell_y;
-  cut_x=grid->cut_x;
-  max_x=grid->max_x;
-  cut_y=grid->cut_y;
-  max_y=grid->max_y;
-  d_x=grid->delta_x;
-  d_y=grid->delta_y;
-  delta_x_i=1.0/grid->delta_x;
-  delta_y_i=1.0/grid->delta_y;
-  offset_x=grid->offset_x;
-  offset_y=grid->offset_y;
-
-  if (i_which==1) {
-    rho=grid->rho1;
-  }
-  else {
-    rho=grid->rho2;
-  }
-  for (i=0;i<n_x*n_y;i++){
-    rho[i]=0.0;
-  }
-  for (i=0;i<n;i++){
-    if ((x[i]>=-cut_x+0.5*d_x)&&(x[i]<max_x+0.5*d_x)&&(y[i]>=-cut_y+0.5*d_y)&&(y[i]<max_y+0.5*d_y)){
-      h_x=(x[i]*delta_x_i+offset_x-0.5);
-      i1=(int)h_x;
-	h_x -= (float)i1;
-      h_y=(y[i]*delta_y_i+offset_y-0.5);
-      i2=(int)h_y;
-	h_y -= (float)i2;
-      j=i1*n_y+i2;
-      rho[j] += (1.0-h_x)*(1.0-h_y)*n_macro;
-      j=(i1+1)*n_y+i2;
-      rho[j] += h_x*(1.0-h_y)*n_macro;
-      j=i1*n_y+i2+1;
-      rho[j] += (1.0-h_x)*h_y*n_macro;
-      j=(i1+1)*n_y+i2+1;
-      rho[j] += h_x*h_y*n_macro;
-      distribute_in++;
-	}
-	else{
-	  distribute_out++;
-	}
-    }
-}
-
-void particles_distribute2(GRID *grid,double x[],double y[],int n,double q[])
+void particles_distribute(GRID *grid,double x[],double y[],int n,int i_which,double q[])
 {
   int i,j,i1,i2,ind_charge;
   double d_x,d_y,delta_x_i,delta_y_i,offset_x,offset_y;
@@ -1740,8 +1684,14 @@ void particles_distribute2(GRID *grid,double x[],double y[],int n,double q[])
   delta_y_i=1.0/grid->delta_y;
   offset_x=grid->offset_x;
   offset_y=grid->offset_y;
+  ind_charge = 0;
 
-  rho=grid->rho2;
+  if (i_which==1) {
+    rho=grid->rho1;
+  }
+  else {
+    rho=grid->rho2;
+  }
 
   for (i=0;i<n_x*n_y;i++){
     rho[i]=0.0;
@@ -1749,7 +1699,9 @@ void particles_distribute2(GRID *grid,double x[],double y[],int n,double q[])
 
   for (i=0;i<n;i++){
     if ((x[i]>=-cut_x+0.5*d_x)&&(x[i]<max_x+0.5*d_x)&&(y[i]>=-cut_y+0.5*d_y)&&(y[i]<max_y+0.5*d_y)){
-      ind_charge=i/NION;
+      if (i_which==2) {
+	ind_charge=i/NION;
+      }
       h_x=(x[i]*delta_x_i+offset_x-0.5);
       i1=(int)h_x;
 	h_x -= (float)i1;
@@ -2243,92 +2195,17 @@ GRID* grid_init_comp (int n_x,int n_y)
 
 
 void particles_move(GRID *grid,double ics0[],double yps0[],double icsp[],
-		    double ypsp[],int nn,double step,double scale)
+			double ypsp[],long mm[],int nn,double step,int i_which,double scale_ar[])
 { 
-  int i,i1,i2;  
-  double ax,ay;
-  double phi1_x,phi2_x,phi3_x,phi1_y,phi2_y,phi3_y;
-  int n_x,n_y;
-  double h_x,h_y;
-  register int j;
-  register double h,h_p;
-  double *phi;
-  double delta_x,delta_y,delta_x_i,delta_y_i,offset_x,offset_y;
-  double xx,yy,xxp,yyp;
-  double min_x,max_x,min_y,max_y;
-
-  n_x=grid->n_cell_x;
-  n_y=grid->n_cell_y;
-  min_x=grid->min_x;
-  max_x=grid->max_x;
-  min_y=grid->min_y;
-  max_y=grid->max_y;
-  delta_x=grid->delta_x;
-  delta_y=grid->delta_y;
-  delta_x_i=1.0/grid->delta_x;
-  delta_y_i=1.0/grid->delta_y;
-  offset_x=grid->offset_x;
-  offset_y=grid->offset_y;
-
-  phi=grid->phi2;
-
-  for (i=0;i<nn;i++){
-    xx=ics0[i];
-    yy=yps0[i];
-    xxp=icsp[i];
-    yyp=ypsp[i];
-    if ((xx>min_x)&&(xx<max_x)&&(yy>min_y)&&(yy<max_y)){
-      h_x=xx*delta_x_i+offset_x;
-      h_y=yy*delta_y_i+offset_y;
-      
-      i1=(int)h_x;
-      h=h_y-0.5;
-      i2=(int)h;
-      h -= i2;
-      j=i1*n_y+i2;
-      h_p=1.0-h;
-      phi1_y=h*phi[j+n_y+1]+h_p*phi[j+n_y];
-      phi2_y=h*phi[j+1]+h_p*phi[j];
-      phi3_y=h*phi[j-n_y+1]+h_p*phi[j-n_y];
-
-      i2=(int)h_y;
-      h=h_x-0.5;
-      i1=(int)h;
-      h -= i1;
-      h_p=1.0-h;
-      j=i1*n_y+i2;
-      phi1_x=h*phi[j+n_y+1]+h_p*phi[j+1];
-      phi2_x=h*phi[j+n_y]+h_p*phi[j];
-      phi3_x=h*phi[j+n_y-1]+h_p*phi[j-1];
-
-      h_x -= (int)h_x;
-      h_y -= (int)h_y;
-      ax = (h_x*(phi1_y-phi2_y)+(1.0-h_x)*(phi2_y-phi3_y))/(delta_x);
-      ay = (h_y*(phi1_x-phi2_x)+(1.0-h_y)*(phi2_x-phi3_x))/(delta_y);
-      
-      icsp[i] -= ax*step*scale;
-      ypsp[i] -= ay*step*scale;
-    }
-    else {
-      fprintf(stderr,"WARNING: particle is not on the grid\n");
-      fprintf(stderr,"WARNING: it's an electron \n"); 
-    }
-  }
-}
-
-void particles_move_ion(GRID *grid,double ics0[],double yps0[],double icsp[],
-			double ypsp[],long mm[],int nn,double step,double scale_ar[])
-{ 
-  float scale;
+  double scale;
   int i,i1,i2;
   double ax,ay;
   double energy;
   double phi1_x,phi2_x,phi3_x,phi1_y,phi2_y,phi3_y;
   int n_x,n_y;
   double h_x,h_y;
-  register int j;
-  register double h,h_p;
-
+  int j;
+  double h,h_p;
   double *phi;
   double delta_x_i,delta_y_i,offset_x,offset_y,delta_x,delta_y;
   double xx,yy,xxp,yyp;
@@ -2348,11 +2225,19 @@ void particles_move_ion(GRID *grid,double ics0[],double yps0[],double icsp[],
   delta_y_i=1.0/grid->delta_y;
   offset_x=grid->offset_x;
   offset_y=grid->offset_y;
+  scale = scale_ar[0];
 
-  phi=grid->phi1;
+  if (i_which==1) {
+    phi=grid->phi2;
+  }
+  else {
+    phi=grid->phi1;
+  }
 
   for (i=0;i<nn;i++){
-    scale=scale_ar[mm[i]];
+    if (i_which==2) {
+      scale=scale_ar[mm[i]];
+    }
     xx=ics0[i];
     yy=yps0[i];
     xxp=icsp[i];
@@ -2389,9 +2274,14 @@ void particles_move_ion(GRID *grid,double ics0[],double yps0[],double icsp[],
       ypsp[i] -= ay*step*scale;
     }
     else {
+      if (i_which == 1) {
+	fprintf(stderr,"WARNING: particle is not on the grid\n");
+	fprintf(stderr,"WARNING: it's an electron \n");
+      } else {
       //fprintf(stderr,"WARNING: particle is not on the grid\n");
-      //fprintf(stderr,"WARNING: it's an ion \n"); 
+      //fprintf(stderr,"WARNING: it's an ion \n");
       ionoutgrid += 1;
+      }
     }
   }
 }
@@ -2618,15 +2508,16 @@ int main (int argc, char *argv[])
 	  }
 	      
 	  particles_distribute(grid,vprelx,vprely,NELB,1,qe0);
+	  particles_distribute(grid,xion,yion,ntemp,2,qionfi);
 	  
-	  switch(ifi) {
-	  case 0:
-	    particles_distribute(grid,xion,yion,ntemp,2,qion);
-	    break;
-	  case 1:
-	    particles_distribute2(grid,xion,yion,ntemp,qionfi);
-	    break;
-	  }
+	  /* switch(ifi) { */
+	  /* case 0: */
+	  /*   particles_distribute(grid,xion,yion,ntemp,2,qion); */
+	  /*   break; */
+	  /* case 1: */
+	  /*   particles_distribute2(grid,xion,yion,ntemp,qionfi); */
+	  /*   break; */
+	  /* } */
 	  //printf ("\n bunch number = %d, qe0 = %lf, qion = %lf \n",jmain,qe0,qion);
 	  
 
@@ -2636,9 +2527,9 @@ int main (int argc, char *argv[])
 	  
 	  /* move the ions - kick the beam electrons */
 	  
-	  particles_move(grid,vprelx,vprely,vprelxp,vprelyp,NELB,tstep,fscale2);
-	  particles_move_ion(grid,xion,yion,xpion,ypion,mion,ntemp,tstep,fscale1);
-	  fprintf(ele_phase, "%ld  %ld  %ld  %lg\n ", it, jmain, ionoutgrid, (double)ionoutgrid/(double)ntemp*100.);
+	  particles_move(grid,vprelx,vprely,vprelxp,vprelyp,mion,NELB,tstep,1,fscale2);
+	  particles_move(grid,xion,yion,xpion,ypion,mion,ntemp,tstep,2,fscale1);
+	  fprintf(ele_phase, "%ld  %ld  %ld  %lg\n ",it, jmain, ionoutgrid, (double)ionoutgrid/(double)ntemp*100.);
 	  
 	  //have to initialize mion[], a vector containing a flag for the ion type -i.e. mion[k] is the integer
 	  //corresponding to which ion type the k-th ion is 

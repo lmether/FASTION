@@ -7,7 +7,7 @@ F77 = gfortran -Dunix -Dg77 -fno-second-underscore -fno-automatic -w -c
 CC = gcc -c
 
 OBJS = fastion.o beambeamnew.o sin2.o
-LIBS = -lgfortran -Lfftw -lfftw
+LIBS = -lgfortran -L/usr/lib64/ -lfftw3 -Lfftw3 -Lfftw -lfftw 
 
 ### BASIC
 FOPTS = -O2 -g -march=native -DNDEBUG
@@ -20,12 +20,14 @@ FOPTS = -O2 -g -march=native -DNDEBUG
 ### BASIC
 COPTS = -O2 -g -march=native -DNDEBUG \
         -I/afs/cern.ch/sw/lcg/external/GSL/1.14/x86_64-slc5-gcc44-opt/include \
-        -I/afs/cern.ch/sw/lcg/external/GSL/1.14/x86_64-slc5-gcc44-opt/include/gsl
+        -I/afs/cern.ch/sw/lcg/external/GSL/1.14/x86_64-slc5-gcc44-opt/include/gsl\
+	-I/usr/include/
 ### PROFILE
 #COPTS = -O2 -g -march=native -DNDEBUG -fno-omit-frame-pointer \
         -fno-inline-functions -fno-inline-functions-called-once -fno-optimize-sibling-calls\
         -I/afs/cern.ch/sw/lcg/external/GSL/1.14/x86_64-slc5-gcc44-opt/include \
-        -I/afs/cern.ch/sw/lcg/external/GSL/1.14/x86_64-slc5-gcc44-opt/include/gsl
+        -I/afs/cern.ch/sw/lcg/external/GSL/1.14/x86_64-slc5-gcc44-opt/include/gsl\
+	-I/usr/include/
 ### PEDANTIC
 #COPTS = -O2 -g -march=native -DNDEBUG \
         -Wall -Wshadow -Wpointer-arith -Wcast-qual -Wcast-align \

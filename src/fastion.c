@@ -2510,11 +2510,11 @@ void particles_move(GRID *grid_in,GRID *grid_out,double x[],double y[],double xp
     for (i=0;i<nn;i++){ 
       // kick electrons by ions on inner grid and ions on outer grid
       get_acceleration(a,x[i],y[i],phi_in,dx_i_in,dy_i_in,off_x_in,off_y_in,nx_in,ny_in);
-      x[i] -= a[0]*step*scale;
-      y[i] -= a[1]*step*scale;
+      xp[i] -= a[0]*step*scale;
+      yp[i] -= a[1]*step*scale;
       get_acceleration(a,x[i],y[i],phi_out,dx_i_out,dy_i_out,off_x_out,off_y_out,nx_out,ny_out);
-      x[i] -= a[0]*step*scale;
-      y[i] -= a[1]*step*scale;
+      xp[i] -= a[0]*step*scale;
+      yp[i] -= a[1]*step*scale;
     }
     break;
   case 2: 
@@ -2531,8 +2531,8 @@ void particles_move(GRID *grid_in,GRID *grid_out,double x[],double y[],double xp
 	  // kick ions on outer grid by electron distribution onto outer grid
 	  get_acceleration(a,x[i],y[i],phi_out,dx_i_out,dy_i_out,off_x_out,off_y_out,nx_out,ny_out);
 	}
-	x[i] -= a[0]*step*scale;
-	y[i] -= a[1]*step*scale;
+	xp[i] -= a[0]*step*scale;
+	yp[i] -= a[1]*step*scale;
       }
       else ionoutgrid += 1;
     }

@@ -7,7 +7,7 @@ F77 = gfortran -Dunix -Dg77 -fno-second-underscore -fno-automatic -w -c
 CC = gcc -c
 
 OBJS = fastion.o beambeamnew.o sin2.o
-LIBS = -lgfortran -L/usr/lib64/ -lfftw3 -Lfftw3 -Lfftw -lfftw 
+LIBS = -lgfortran -L/usr/lib64/ -lfftw3 -Lfftw3
 
 ### BASIC
 FOPTS = -O2 -g -march=native -DNDEBUG
